@@ -52,7 +52,12 @@ class LoRAResearchPipeline:
         img_paths = glob(f"{save_dir}/images/*.png")
         metadata = []
 
-        captioner = tf_pipeline("image-to-text", model="llava-hf/llava-1.5-7b-hf", device=0)
+        captioner = tf_pipeline(
+            "image-text-to-text",
+            model="llava-hf/llava-1.5-7b-hf",
+            device=0,
+            model_kwargs={"torch_dtype": torch.float16}  # 반정밀도 사용으로 메모리 절약
+        )
 
         for img_p in img_paths:
             raw_image = Image.open(img_p)
