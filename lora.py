@@ -42,6 +42,8 @@ class LoRAResearchPipeline:
         if self.current_lora and os.path.exists(self.current_lora):
             pipe.load_lora_weights(self.current_lora)
 
+        pipe.to(device="cuda", dtype=torch.float16)
+
         prompt = "A high quality digital painting of a futuristic city"
 
         for i in range(count):
@@ -114,6 +116,11 @@ class LoRAResearchPipeline:
     @measure_time
     def run_lora_train(self, gen_num):
         next_gen = gen_num + 1
+
+        if os.path.exists(f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"):
+            print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA existing. Jumping training.{Fore.RESET}")
+            return
+
         print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
         subprocess.run([
