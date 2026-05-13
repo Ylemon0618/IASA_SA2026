@@ -24,3 +24,4 @@ scipy
 tensorboard
 tqdm
 colorama
+python-dotenv
