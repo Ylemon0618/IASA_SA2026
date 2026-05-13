@@ -70,7 +70,11 @@ class LoRAResearchPipeline:
             outputs = captioner(
                 images=raw_image,
                 text=prompt,
-                max_new_tokens=100
+                generate_kwargs={
+                    "max_new_tokens": 100,
+                    "max_length": None,
+                    "do_sample": False
+                }
             )
 
             caption = outputs[0]['generated_text'].split("ASSISTANT:")[-1].strip()
