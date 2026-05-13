@@ -24,38 +24,55 @@ class LoRAResearchPipeline:
 
     @measure_time
     def generate_images(self, gen_num, count=10):
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
         save_path = f"{self.output_root}/gen_{gen_num}/images"
-        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) < count:
-            os.makedirs(save_path, exist_ok=True)
+        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
+            print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
+            return
 
-            pipe = DiffusionPipeline.from_pretrained(
-                self.current_model,
-                dtype=torch.float16,
-                variant="fp16"
-            ).to(self.device)
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
 
-            if self.current_lora and os.path.exists(self.current_lora):
-                pipe.load_lora_weights(self.current_lora)
+        os.makedirs(save_path, exist_ok=True)
 
-            prompt = "A high quality digital painting of a futuristic city"
+        pipe = DiffusionPipeline.from_pretrained(
+            self.current_model,
+            dtype=torch.float16,
+            variant="fp16"
+        ).to(self.device)
 
-            for i in range(count):
-                image = pipe(prompt).images[0]
-                image.save(f"{save_path}/img_{i:05d}.png")
+        if self.current_lora and os.path.exists(self.current_lora):
+            pipe.load_lora_weights(self.current_lora)
 
-            del pipe
-            torch.cuda.empty_cache()
+        prompt = "A high quality digital painting of a futuristic city"
+
+        for i in range(count):
+            image = pipe(prompt).images[0]
+            image.save(f"{save_path}/img_{i:05d}.png")
+
+        del pipe
+        torch.cuda.empty_cache()
 
         print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
               end=' ')
 
     @measure_time
     def caption_images(self, gen_num):
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
-        save_dir = f"{self.output_root}/gen_{gen_num}"
-        img_paths = glob(f"{save_dir}/images/*.png")
+        save_dir = f"{self.output_root}/gen_{gen_num}/images"
+        img_paths = glob(f"{save_dir}/*.png")
         metadata = []
+
+        metadata_path = os.path.join(save_dir, "metadata.jsonl")
+        image_files = glob(os.path.join(save_dir, "*.png"))
+        total_images = len(image_files)
+
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                existing_captions = f.readlines()
+
+            if len(existing_captions) >= total_images:
+                print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
+                return
+
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
 
         captioner = tf_pipeline(
             "image-text-to-text",
