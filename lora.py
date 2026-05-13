@@ -7,6 +7,7 @@ import subprocess
 from dotenv import load_dotenv
 from diffusers import DiffusionPipeline
 from transformers import pipeline as tf_pipeline
+from colorama import Fore, Style
 from modules.measures import *
 
 load_dotenv()
@@ -22,7 +23,7 @@ class LoRAResearchPipeline:
 
     @measure_time
     def generate_images(self, gen_num, count=10):
-        print(f"Generation {gen_num}: SDXL Image Synthesis Start")
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
         save_path = f"{self.output_root}/gen_{gen_num}/images"
         if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
             return
@@ -31,7 +32,7 @@ class LoRAResearchPipeline:
 
         pipe = DiffusionPipeline.from_pretrained(
             self.current_model,
-            torch_dtype=torch.float16,
+            dtype=torch.float16,
             variant="fp16"
         ).to(self.device)
 
@@ -46,11 +47,11 @@ class LoRAResearchPipeline:
 
         del pipe
         torch.cuda.empty_cache()
-        print(f"Generation {gen_num}: SDXL Image Synthesis End", end=' ')
+        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}", end=' ')
 
     @measure_time
     def caption_images(self, gen_num):
-        print(f"Generation {gen_num}: Llava Captioning Start")
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
         save_dir = f"{self.output_root}/gen_{gen_num}"
         img_paths = glob(f"{save_dir}/images/*.png")
         metadata = []
@@ -59,7 +60,7 @@ class LoRAResearchPipeline:
             "image-text-to-text",
             model="llava-hf/llava-1.5-7b-hf",
             device=0,
-            model_kwargs={"torch_dtype": torch.float16}  # 반정밀도 사용으로 메모리 절약
+            model_kwargs={"dtype": torch.float32}  # 반정밀도 사용으로 메모리 절약
         )
 
         for img_p in img_paths:
@@ -79,18 +80,18 @@ class LoRAResearchPipeline:
             with open(f"{save_dir}/images/{file_name.replace('.png', '.txt')}", "w") as f_txt:
                 f_txt.write(caption)
 
-        with open(f"{save_dir}/metadata.jsonl", 'w') as f:
+        with open(f"{save_dir}/images/metadata.jsonl", 'w') as f:
             for entry in metadata:
                 f.write(json.dumps(entry) + "\n")
 
         del captioner
         torch.cuda.empty_cache()
-        print(f"Generation {gen_num}: Llava Captioning End", end=' ')
+        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
 
     @measure_time
     def run_lora_train(self, gen_num):
         next_gen = gen_num + 1
-        print(f"Generation {gen_num}: LoRA Training Start")
+        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
         subprocess.run([
             "bash", "lora_pilot.sh",
@@ -100,6 +101,7 @@ class LoRAResearchPipeline:
         ], check=True)
 
         self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
+        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}", end=' ')
 
     def run(self):
         for gen in range(self.total_gens):
