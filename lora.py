@@ -62,7 +62,10 @@ class LoRAResearchPipeline:
         for img_p in img_paths:
             raw_image = Image.open(img_p)
             prompt = "USER: <image>\nDescribe this image in detail.\nASSISTANT:"
-            outputs = captioner(raw_image, prompt=prompt, generate_kwargs={"max_new_tokens": 50})
+            outputs = captioner(
+                {"image": raw_image, "text": prompt},
+                generate_kwargs={"max_new_tokens": 50}
+            )
 
             caption = outputs[0]['generated_text'].split("ASSISTANT:")[-1].strip()
 
