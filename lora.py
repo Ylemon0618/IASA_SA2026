@@ -99,10 +99,10 @@ class LoRAResearchPipeline:
             file_name = os.path.basename(img_path)
             metadata.append({"file_name": file_name, "text": caption})
 
-            with open(f"{save_dir}/images/{file_name.replace('.png', '.txt')}", "w") as f_txt:
+            with open(f"{save_dir}/{file_name.replace('.png', '.txt')}", "w") as f_txt:
                 f_txt.write(caption)
 
-        with open(f"{save_dir}/images/metadata.jsonl", 'w') as f:
+        with open(f"{save_dir}/metadata.jsonl", 'w') as f:
             for entry in metadata:
                 f.write(json.dumps(entry) + "\n")
 

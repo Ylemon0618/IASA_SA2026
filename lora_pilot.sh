@@ -1,6 +1,5 @@
 accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_image_lora_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./train_data" \
   --resolution=1024 \
   --output_dir="./sdxl-lora-pilot" \
   --mixed_precision="bf16" \
@@ -14,4 +13,5 @@ accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_imag
   --seed=42 \
   --rank=32 \
   --gradient_checkpointing \
-  --report_to="tensorboard"
+  --report_to="tensorboard" \
+  "$@"
