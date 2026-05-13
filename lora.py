@@ -21,7 +21,7 @@ class LoRAResearchPipeline:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     @measure_time
-    def generate_images(self, gen_num, count=100):
+    def generate_images(self, gen_num, count=10):
         print(f"Generation {gen_num}: SDXL Image Synthesis Start")
         save_path = f"{self.output_root}/gen_{gen_num}/images"
         os.makedirs(save_path, exist_ok=True)
