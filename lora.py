@@ -24,6 +24,9 @@ class LoRAResearchPipeline:
     def generate_images(self, gen_num, count=10):
         print(f"Generation {gen_num}: SDXL Image Synthesis Start")
         save_path = f"{self.output_root}/gen_{gen_num}/images"
+        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
+            return
+
         os.makedirs(save_path, exist_ok=True)
 
         pipe = DiffusionPipeline.from_pretrained(
@@ -62,10 +65,7 @@ class LoRAResearchPipeline:
         for img_p in img_paths:
             raw_image = Image.open(img_p)
             prompt = "USER: <image>\nDescribe this image in detail.\nASSISTANT:"
-            outputs = captioner(
-                {"image": raw_image, "text": prompt},
-                generate_kwargs={"max_new_tokens": 50}
-            )
+            outputs = captioner(raw_image, prompt=prompt, generate_kwargs={"max_new_tokens": 50})
 
             caption = outputs[0]['generated_text'].split("ASSISTANT:")[-1].strip()
 
