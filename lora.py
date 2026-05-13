@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from diffusers import DiffusionPipeline
 from transformers import pipeline as tf_pipeline
 from colorama import Fore, Style
+from tqdm import tqdm
 from modules.measures import *
 
 load_dotenv()
@@ -25,29 +26,29 @@ class LoRAResearchPipeline:
     def generate_images(self, gen_num, count=10):
         print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
         save_path = f"{self.output_root}/gen_{gen_num}/images"
-        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
-            return
+        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) < count:
+            os.makedirs(save_path, exist_ok=True)
 
-        os.makedirs(save_path, exist_ok=True)
+            pipe = DiffusionPipeline.from_pretrained(
+                self.current_model,
+                dtype=torch.float16,
+                variant="fp16"
+            ).to(self.device)
 
-        pipe = DiffusionPipeline.from_pretrained(
-            self.current_model,
-            dtype=torch.float16,
-            variant="fp16"
-        ).to(self.device)
+            if self.current_lora and os.path.exists(self.current_lora):
+                pipe.load_lora_weights(self.current_lora)
 
-        if self.current_lora and os.path.exists(self.current_lora):
-            pipe.load_lora_weights(self.current_lora)
+            prompt = "A high quality digital painting of a futuristic city"
 
-        prompt = "A high quality digital painting of a futuristic city"
+            for i in range(count):
+                image = pipe(prompt).images[0]
+                image.save(f"{save_path}/img_{i:05d}.png")
 
-        for i in range(count):
-            image = pipe(prompt).images[0]
-            image.save(f"{save_path}/img_{i:05d}.png")
+            del pipe
+            torch.cuda.empty_cache()
 
-        del pipe
-        torch.cuda.empty_cache()
-        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}", end=' ')
+        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
+              end=' ')
 
     @measure_time
     def caption_images(self, gen_num):
@@ -63,18 +64,18 @@ class LoRAResearchPipeline:
             model_kwargs={"dtype": torch.float32}  # 반정밀도 사용으로 메모리 절약
         )
 
-        for img_p in img_paths:
-            raw_image = Image.open(img_p)
+        for i, img_path in enumerate(tqdm(img_paths, desc="Captioning Progress")):
+            raw_image = Image.open(img_path).convert("RGB")
             prompt = "USER: <image>\nDescribe this image in detail.\nASSISTANT:"
             outputs = captioner(
                 images=raw_image,
                 text=prompt,
-                generate_kwargs={"max_new_tokens": 50, "max_length": None}
+                max_new_tokens=50
             )
 
             caption = outputs[0]['generated_text'].split("ASSISTANT:")[-1].strip()
 
-            file_name = os.path.basename(img_p)
+            file_name = os.path.basename(img_path)
             metadata.append({"file_name": file_name, "text": caption})
 
             with open(f"{save_dir}/images/{file_name.replace('.png', '.txt')}", "w") as f_txt:
@@ -86,6 +87,7 @@ class LoRAResearchPipeline:
 
         del captioner
         torch.cuda.empty_cache()
+
         print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
 
     @measure_time
