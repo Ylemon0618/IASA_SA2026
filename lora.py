@@ -109,12 +109,12 @@ class LoRAResearchPipeline:
         del captioner
         torch.cuda.empty_cache()
 
-        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
 
     @measure_time
     def run_lora_train(self, gen_num):
         next_gen = gen_num + 1
-        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
         subprocess.run([
             "bash", "lora_pilot.sh",
@@ -124,7 +124,7 @@ class LoRAResearchPipeline:
         ], check=True)
 
         self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
-        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}", end=' ')
+        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}", end=' ')
 
     def run(self):
         for gen in range(self.total_gens):
