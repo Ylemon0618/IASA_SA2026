@@ -13,6 +13,5 @@ accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_imag
   --checkpointing_steps=250 \
   --seed=42 \
   --rank=32 \
-  --enable_xformers_memory_efficient_attention \
   --gradient_checkpointing \
   --report_to="tensorboard"
