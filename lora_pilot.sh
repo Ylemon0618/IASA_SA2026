@@ -1,4 +1,4 @@
-accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_image_lora_sdxl.py \
+PYTHONWARNINGS="ignore" TRANSFORMERS_VERBOSITY="error" accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_image_lora_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
   --resolution=1024 \
   --output_dir="./sdxl-lora-pilot" \
