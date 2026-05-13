@@ -61,7 +61,7 @@ class LoRAResearchPipeline:
             "image-text-to-text",
             model="llava-hf/llava-1.5-7b-hf",
             device=0,
-            model_kwargs={"dtype": torch.float32}  # 반정밀도 사용으로 메모리 절약
+            model_kwargs={"dtype": torch.float16}
         )
 
         for i, img_path in enumerate(tqdm(img_paths, desc="Captioning Progress")):
@@ -70,8 +70,7 @@ class LoRAResearchPipeline:
             outputs = captioner(
                 images=raw_image,
                 text=prompt,
-                max_new_tokens=50,
-                max_length=20
+                max_new_tokens=100
             )
 
             caption = outputs[0]['generated_text'].split("ASSISTANT:")[-1].strip()
