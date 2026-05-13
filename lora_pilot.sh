@@ -1,4 +1,4 @@
-accelerate launch diffusers/examples/lora/train_text_to_image_lora_sdxl.py \
+accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_image_lora_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
   --train_data_dir="./train_data" \
   --resolution=1024 \
