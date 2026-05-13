@@ -1,17 +1,27 @@
-import os
 import json
-import torch
-from glob import glob
-from PIL import Image
+import logging
+import os
 import subprocess
-from dotenv import load_dotenv
-from diffusers import DiffusionPipeline
-from transformers import pipeline as tf_pipeline
+import warnings
+from glob import glob
 from colorama import Fore, Style
+
+import torch
+from PIL import Image
+from diffusers import DiffusionPipeline
+from dotenv import load_dotenv
 from tqdm import tqdm
+from transformers import logging as tf_logging
+from transformers import pipeline as tf_pipeline
+
 from modules.measures import *
 
 load_dotenv()
+
+tf_logging.set_verbosity_error()
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
+logging.getLogger("httpx").setLevel(logging.WARNING)
+warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub")
 
 
 class LoRAResearchPipeline:
