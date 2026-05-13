@@ -26,10 +26,10 @@ class LoRAResearchPipeline:
     def generate_images(self, gen_num, count=10):
         save_path = f"{self.output_root}/gen_{gen_num}/images"
         if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
-            print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
+            print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
             return
 
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
 
         os.makedirs(save_path, exist_ok=True)
 
@@ -53,7 +53,7 @@ class LoRAResearchPipeline:
         del pipe
         torch.cuda.empty_cache()
 
-        print(f"{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
+        print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
               end=' ')
 
     @measure_time
@@ -71,10 +71,10 @@ class LoRAResearchPipeline:
                 existing_captions = f.readlines()
 
             if len(existing_captions) >= total_images:
-                print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
+                print(f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
                 return
 
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
 
         captioner = tf_pipeline(
             "image-text-to-text",
@@ -111,17 +111,17 @@ class LoRAResearchPipeline:
         del captioner
         torch.cuda.empty_cache()
 
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
+        print(f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
 
     @measure_time
     def run_lora_train(self, gen_num):
         next_gen = gen_num + 1
 
         if os.path.exists(f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"):
-            print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA existing. Jumping training.{Fore.RESET}")
+            print(f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA existing. Jumping training.{Fore.RESET}")
             return
 
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
         subprocess.run([
             "bash", "lora_pilot.sh",
@@ -131,7 +131,7 @@ class LoRAResearchPipeline:
         ], check=True)
 
         self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
-        print(f"{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}", end=' ')
+        print(f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}", end=' ')
 
     def run(self):
         for gen in range(self.total_gens):
