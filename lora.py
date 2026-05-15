@@ -33,7 +33,7 @@ class LoRAResearchPipeline:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     @measure_time
-    def generate_images(self, gen_num, count=10):
+    def generate_images(self, gen_num, count=100):
         save_path = f"{self.output_root}/gen_{gen_num}/images"
         if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
             print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
