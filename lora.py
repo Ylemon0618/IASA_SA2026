@@ -34,14 +34,47 @@ class LoRAResearchPipeline:
         self.output_root = "./lora_data"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.prompt_pool = [
-            "A high quality digital painting of a futuristic city with neon lights",
-            "A majestic fantasy castle on top of a mountain, cinematic lighting",
-            "A cute fluffy cat sitting on a wooden bench in a sunny garden",
-            "A cyberpunk street kitchen at night with steam rising, realistic style",
-            "An astronaut floating in deep space, colorful nebula in the background",
-            "A serene tropical beach during a golden sunset, waves crashing",
-            "A highly detailed portrait of an ancient wizard, mystical atmosphere",
-            "A futuristic sports car driving through a rain-slicked highway at night"
+            # 1. Boat & Ship (선박)
+            "A wooden fishing boat anchored near a rocky shore with calm blue water",
+            "A large cargo ship traveling through the open sea under rain clouds",
+            "Two people rowing a small wooden canoe on a peaceful city river",
+            "A majestic sailboat at sea with white sails catching the wind",
+
+            # 2. Bottle & Tabletop (병 및 식탁 소품)
+            "A group of friends holding green beer bottles at an outdoor party",
+            "A clear glass bottle of soda sitting on a messy kitchen counter",
+            "A man pouring red wine from a bottle into a glass at a dinner table",
+            "A close-up of an open refrigerator with food and colorful juice bottles",
+
+            # 3. Bus & Transport (버스 및 대중교통)
+            "A red double decker bus driving down a wet city street in the afternoon",
+            "A yellow school bus stopped on the road with its door wide open",
+            "A large white tour bus parked in a crowded station next to a brick building",
+            "A vintage green trolley passing by a park garden and a low fence",
+
+            # 4. Car (자동차)
+            "A shiny silver sports car parked in front of a modern brick building",
+            "A black truck driving through a rural highway with trees in the distance",
+            "A clean white minivan parked inside a garage with a blurry background",
+            "A race car drifting along a dirt road, kicking up a cloud of dust",
+
+            # 5. Cat (고양이)
+            "A grey tabby cat sitting on a wooden chair by a sunny kitchen window",
+            "A fluffy ginger cat sleeping on a sofa with a blanket underneath",
+            "A small white cat with bright eyes looking up from beneath a table",
+            "A black and white cat stretching its body on a patterned rug",
+
+            # 6. Chair & Living Room (의자 및 가구 실내)
+            "An empty wooden rocking chair in a dimly lit living room with patterned fabric",
+            "A modern black office chair placed next to a cluttered desk with a computer",
+            "A couple of people sitting on red folding chairs in a backyard garden",
+            "A dining table surrounded by four matching wooden chairs in a quiet apartment",
+
+            # 7. Cow (소 및 가축)
+            "A black and white cow grazing in a lush green pasture near a fence",
+            "A small calf resting on a bed of dry straw inside a wooden barn",
+            "A group of brown cows standing near a water trough under a big tree",
+            "A large dark bull standing behind a metal wire fence on a remote farm"
         ]
 
     @measure_time
