@@ -98,4 +98,5 @@ if __name__ == "__main__":
 
     print("\n=== IS Evaluation Summary ===")
     for gen, score in results.items():
-        print(f"{gen}: {score}")
+        mean, std = score
+        print(f"{gen}: {mean:.4f} (± {std:.4f})")
