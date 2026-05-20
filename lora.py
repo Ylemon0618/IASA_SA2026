@@ -3,6 +3,8 @@ import logging
 import os
 import subprocess
 import warnings
+import random
+import sys
 from glob import glob
 from colorama import Fore, Style
 
@@ -31,15 +33,27 @@ class LoRAResearchPipeline:
         self.total_gens = total_gens
         self.output_root = "./lora_data"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.prompt_pool = [
+            "A high quality digital painting of a futuristic city with neon lights",
+            "A majestic fantasy castle on top of a mountain, cinematic lighting",
+            "A cute fluffy cat sitting on a wooden bench in a sunny garden",
+            "A cyberpunk street kitchen at night with steam rising, realistic style",
+            "An astronaut floating in deep space, colorful nebula in the background",
+            "A serene tropical beach during a golden sunset, waves crashing",
+            "A highly detailed portrait of an ancient wizard, mystical atmosphere",
+            "A futuristic sports car driving through a rain-slicked highway at night"
+        ]
 
     @measure_time
     def generate_images(self, gen_num, count=100):
         save_path = f"{self.output_root}/gen_{gen_num}/images"
         if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
-            print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
+            print(
+                f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
             return
 
-        print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
 
         os.makedirs(save_path, exist_ok=True)
 
@@ -50,21 +64,22 @@ class LoRAResearchPipeline:
         ).to(self.device)
 
         if self.current_lora and os.path.exists(self.current_lora):
+            print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Loading LoRA weights from: {self.current_lora}{Fore.RESET}")
             pipe.load_lora_weights(self.current_lora)
 
         pipe.to(device="cuda", dtype=torch.float16)
 
-        prompt = "A high quality digital painting of a futuristic city"
-
         for i in range(count):
+            prompt = random.choice(self.prompt_pool)
             image = pipe(prompt).images[0]
             image.save(f"{save_path}/img_{i:05d}.png")
 
         del pipe
         torch.cuda.empty_cache()
 
-        print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
-              end=' ')
+        print(
+            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
+            end=' ')
 
     @measure_time
     def caption_images(self, gen_num):
@@ -81,10 +96,12 @@ class LoRAResearchPipeline:
                 existing_captions = f.readlines()
 
             if len(existing_captions) >= total_images:
-                print(f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
+                print(
+                    f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
                 return
 
-        print(f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
 
         captioner = tf_pipeline(
             "image-text-to-text",
@@ -121,17 +138,22 @@ class LoRAResearchPipeline:
         del captioner
         torch.cuda.empty_cache()
 
-        print(f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}", end=' ')
+        print(
+            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}",
+            end=' ')
 
     @measure_time
     def run_lora_train(self, gen_num):
         next_gen = gen_num + 1
 
         if os.path.exists(f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"):
-            print(f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA existing. Jumping training.{Fore.RESET}")
+            print(
+                f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA existing. Jumping training.{Fore.RESET}")
+            self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
             return
 
-        print(f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
         subprocess.run([
             "bash", "lora_pilot.sh",
@@ -141,13 +163,29 @@ class LoRAResearchPipeline:
         ], check=True)
 
         self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
-        print(f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}", end=' ')
+        print(
+            f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}",
+            end=' ')
 
     def run(self):
+        print(f"{Fore.GREEN}=== LoRA Pipeline Running ==={Style.RESET_ALL}")
+
         for gen in range(self.total_gens):
-            self.generate_images(gen)
-            self.caption_images(gen)
-            self.run_lora_train(gen)
+            if gen == 0:
+                gen_0_dir = f"{self.output_root}/gen_0/images"
+                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.png")) == 0:
+                    print(
+                        f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Seed images not found in '{gen_0_dir}'. Please provide source images.{Fore.RESET}")
+                    sys.exit(1)
+
+                print(
+                    f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}Detected seed images in gen_0. Proceeding to Caption & Train.{Fore.RESET}")
+                self.caption_images(gen)
+                self.run_lora_train(gen)
+            else:
+                self.generate_images(gen)
+                self.caption_images(gen)
+                self.run_lora_train(gen)
 
 
 if __name__ == "__main__":
