@@ -91,11 +91,11 @@ if __name__ == "__main__":
         image_dir = os.path.join(data_root, f"gen_{gen}", "images")
         if os.path.exists(image_dir):
             print(f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Calculate IS score{Style.RESET_ALL}")
-            score = calculate_inception_score(image_dir)
-            if score is not None:
-                results[f"Gen_{gen}"] = score
-                print(f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: IS score is {Fore.GREEN}{score:.4f}{Style.RESET_ALL}")
+            mean, std = calculate_inception_score(image_dir)
+            if None not in (mean, std):
+                results[f"Gen_{gen}"] = (mean, std)
+                print(f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: IS score is {Fore.GREEN}{mean:.4f} (± {std:.4f}){Style.RESET_ALL}")
 
     print("\n=== IS Evaluation Summary ===")
     for gen, score in results.items():
-        print(f"{gen}: {score:.4f}")
+        print(f"{gen}: {score}")
