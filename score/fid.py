@@ -4,16 +4,12 @@ from colorama import Fore, Style
 from PIL import Image
 import torch
 
-# pytorch_fid 내부 클래스 가로채기(Monkey Patch)를 위한 임포트
 import pytorch_fid.fid_score as fid_core
 from pytorch_fid.fid_score import calculate_fid_given_paths
 
 load_dotenv()
 
 
-# =====================================================================
-# 🔥 [MONKEY PATCH] pytorch_fid 내부의 크래시 유발 데이터로더 강제 개조
-# =====================================================================
 class SafeFIDImageDataset(torch.utils.data.Dataset):
     def __init__(self, files, transforms=None):
         self.files = files
@@ -25,14 +21,11 @@ class SafeFIDImageDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         path = self.files[i]
         try:
-            # 1. 무조건 3채널 RGB로 변환 (Grayscale, RGBA 크래시 방지)
             img = Image.open(path).convert('RGB')
 
-            # 2. 모든 이미지 해상도를 1024x1024로 강제 고정 (배치 정렬 에러 방지)
             if img.size != (1024, 1024):
                 img = img.resize((1024, 1024), Image.Resampling.BILINEAR)
         except Exception as e:
-            # 혹시나 파일이 깨졌을 경우를 대비한 블랙 더미 이미지 할당 안전장치
             img = Image.new('RGB', (1024, 1024), (0, 0, 0))
 
         if self.transforms is not None:
@@ -41,11 +34,7 @@ class SafeFIDImageDataset(torch.utils.data.Dataset):
         return img
 
 
-# 오리지널 ImageFolderDataset 클래스를 우리가 새로 정의한 안전한 템플릿으로 교체
 fid_core.ImageFolderDataset = SafeFIDImageDataset
-
-
-# =====================================================================
 
 
 def evaluate_model_collapse(base_gen, target_gen, data_root="./lora_data", device="cuda"):
@@ -64,7 +53,6 @@ def evaluate_model_collapse(base_gen, target_gen, data_root="./lora_data", devic
 
     paths = [path_real, path_fake]
 
-    # 메모리 안정성을 위해 배치 사이즈를 50에서 32로 소폭 조정 (VRAM 버스트 방지)
     batch_size = 32
     dims = 2048
 
