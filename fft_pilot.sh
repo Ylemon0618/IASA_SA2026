@@ -15,6 +15,11 @@ if [ -z "$PRETRAINED_MODEL" ] || [ -z "$TRAIN_DATA_DIR" ] || [ -z "$OUTPUT_DIR" 
   exit 1
 fi
 
+export HTTPX_LOG_LEVEL=WARNING
+export TRANSFORMERS_VERBOSITY=warning
+export DIFFUSERS_VERBOSITY=warning
+export HF_HUB_VERBOSITY=warning
+
 SCRIPT="diffusers/examples/text_to_image/train_text_to_image_sdxl.py"
 if [ ! -f "$SCRIPT" ]; then
   echo "Script not found: $SCRIPT"
