@@ -208,9 +208,9 @@ class FFTResearchPipeline:
         for gen in range(self.total_gens):
             if gen == 0:
                 gen_0_dir = f"{self.output_root}/gen_0/images"
-                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.jpg")) == 0:
+                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.png")) == 0:
                     print(
-                        f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Seed images (.jpg) not found in '{gen_0_dir}'.{Fore.RESET}")
+                        f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Seed images (.png) not found in '{gen_0_dir}'.{Fore.RESET}")
                     sys.exit(1)
 
                 print(
