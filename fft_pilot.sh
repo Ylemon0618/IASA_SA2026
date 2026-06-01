@@ -32,7 +32,7 @@ accelerate launch "$SCRIPT" \
   --train_data_dir="$TRAIN_DATA_DIR" \
   --resolution=1024 \
   --output_dir="$OUTPUT_DIR" \
-  --mixed_precision="bf16" \
+  --mixed_precision="fp16" \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
   --learning_rate=1e-6 \
@@ -41,7 +41,6 @@ accelerate launch "$SCRIPT" \
   --max_train_steps=500 \
   --checkpointing_steps=250 \
   --seed=42 \
-  --enable_xformers_memory_efficient_attention \
   --gradient_checkpointing \
   --use_8bit_adam \
   --report_to="tensorboard"
