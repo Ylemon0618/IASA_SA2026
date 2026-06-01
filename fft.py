@@ -93,10 +93,11 @@ class FFTResearchPipeline:
             f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
         os.makedirs(save_path, exist_ok=True)
 
+        is_hub_model = not os.path.isdir(self.current_model)
         pipe = DiffusionPipeline.from_pretrained(
             self.current_model,
-            dtype=torch.float16,
-            variant="fp16"
+            torch_dtype=torch.float16,
+            variant="fp16" if is_hub_model else None
         ).to(self.device)
 
         for i in range(count):
