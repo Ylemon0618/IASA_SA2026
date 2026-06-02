@@ -203,10 +203,41 @@ class FFTResearchPipeline:
             f"{Fore.YELLOW}{'[FFT]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Fine-tuning End{Style.RESET_ALL}",
             end='\n')
 
+    def auto_detect_start(self):
+        completed = []
+        for path in glob("./models/gen_*/model_index.json"):
+            try:
+                gen_n = int(path.split("gen_")[1].split("/")[0])
+                completed.append(gen_n)
+            except (IndexError, ValueError):
+                continue
+
+        if not completed:
+            return 0, self.current_model
+
+        latest = max(completed)
+        model_path = f"./models/gen_{latest}"
+        print(
+            f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}Resume detected: gen_{latest} model found. "
+            f"Resuming from generation {latest}.{Fore.RESET}")
+        return latest, model_path
+
     def run(self):
         print(f"{Fore.GREEN}=== FFT Pipeline Running ==={Style.RESET_ALL}")
 
-        for gen in range(self.total_gens):
+        # 시작 세대 결정: 환경변수 > 자동 감지
+        env_start = os.environ.get("START_GEN")
+        if env_start is not None:
+            start_gen = int(env_start)
+            if start_gen > 0:
+                self.current_model = f"./models/gen_{start_gen}"
+                print(
+                    f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}START_GEN={start_gen} set. "
+                    f"Using model: {self.current_model}{Fore.RESET}")
+        else:
+            start_gen, self.current_model = self.auto_detect_start()
+
+        for gen in range(start_gen, self.total_gens):
             if gen == 0:
                 gen_0_dir = f"{self.output_root}/gen_0/images"
                 if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.png")) == 0:
