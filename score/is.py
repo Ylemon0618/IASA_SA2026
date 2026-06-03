@@ -84,7 +84,7 @@ def calculate_inception_score(img_dir, batch_size=32, splits=10, device="cuda"):
 if __name__ == "__main__":
     generation = int(os.environ.get("GENERATIONS", 20))
     target_generations = list(range(generation))
-    data_root = "./lora_data"
+    data_root = "./fft_data"
 
     results = {}
     for gen in target_generations:

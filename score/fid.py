@@ -37,7 +37,7 @@ class SafeFIDImageDataset(torch.utils.data.Dataset):
 fid_core.ImageFolderDataset = SafeFIDImageDataset
 
 
-def evaluate_model_collapse(base_gen, target_gen, data_root="./lora_data", device="cuda"):
+def evaluate_model_collapse(base_gen, target_gen, data_root="./fft_data", device="cuda"):
     path_real = os.path.join(data_root, f"gen_{base_gen}", "images")
     path_fake = os.path.join(data_root, f"gen_{target_gen}", "images")
 
