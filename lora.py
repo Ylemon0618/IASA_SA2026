@@ -101,7 +101,7 @@ class LoRAResearchPipeline:
         if self.current_lora and os.path.exists(self.current_lora):
             print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Merging LoRA weights from: {self.current_lora}{Fore.RESET}")
             pipe.load_lora_weights(self.current_lora)
-            pipe.unet = pipe.unet.merge_and_unload()
+            pipe.fuse_lora()
 
         for i in range(count):
             prompt = random.choice(self.prompt_pool)
