@@ -2,91 +2,91 @@ import os
 import json
 from glob import glob
 import torch
+import torch.nn.functional as F
 from PIL import Image
 from tqdm import tqdm
 from transformers import CLIPProcessor, CLIPModel
+from colorama import Fore, Style
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-def calculate_generation_clip_score(gen_dir):
-    metadata_path = os.path.join(gen_dir, "images", "metadata.jsonl")
+@torch.no_grad()
+def calculate_clip_score(gen_dir, device="cuda"):
     images_dir = os.path.join(gen_dir, "images")
+    metadata_path = os.path.join(images_dir, "metadata.jsonl")
 
     if not os.path.exists(metadata_path):
+        print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.MAGENTA}{gen_dir}{Fore.RED}: metadata.jsonl not found{Style.RESET_ALL}")
         return None
 
-    # CLIP 오버헤드 최소화를 위해 FP16 및 CUDA 세팅
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_id = "openai/clip-vit-large-patch14"
-    model = CLIPModel.from_pretrained(model_id).to(device).to(torch.float16)
-    processor = CLIPProcessor.from_pretrained(model_id)
-
-    captions_dict = {}
+    captions = {}
     with open(metadata_path, "r", encoding="utf-8") as f:
         for line in f:
             data = json.loads(line)
-            captions_dict[data["file_name"]] = data["text"]
+            captions[data["file_name"]] = data["text"]
 
-    total_score = 0.0
-    match_count = 0
+    if not captions:
+        print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.MAGENTA}{gen_dir}{Fore.RED}: No caption in metadata.jsonl{Style.RESET_ALL}")
+        return None
 
-    # 해당 세대의 모든 이미지와 캡션을 1:1 매칭하여 배치 연산
-    for img_name, text in tqdm(captions_dict.items(), desc=f"Evaluating {os.path.basename(gen_dir)}", leave=False):
+    model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(device).to(torch.float16)
+    model.eval()
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+
+    scores = []
+    for img_name, text in tqdm(captions.items(), desc=f"CLIP {os.path.basename(gen_dir)}", leave=False):
         img_path = os.path.join(images_dir, img_name)
         if not os.path.exists(img_path):
             continue
-
         try:
             image = Image.open(img_path).convert("RGB")
-
-            # CLIP 전처리 및 텐서 배치화
             inputs = processor(text=[text], images=image, return_tensors="pt", padding=True).to(device)
-            inputs['pixel_values'] = inputs['pixel_values'].to(torch.float16)
+            inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
 
-            with torch.no_grad():
-                outputs = model(**inputs)
-                # 이미지 텐서와 텍스트 텐서 간의 코사인 유사도 추출
-                logits_per_image = outputs.logits_per_image
-                score = logits_per_image.item()
-
-            total_score += score
-            match_count += 1
-        except Exception as e:
+            outputs = model(**inputs)
+            img_emb = F.normalize(model.get_image_features(pixel_values=inputs["pixel_values"]), dim=-1)
+            txt_emb = F.normalize(model.get_text_features(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"]
+            ), dim=-1)
+            scores.append((img_emb * txt_emb).sum().item())
+        except Exception:
             continue
 
-    # 전역 메모리 해제 (SDXL/LLaVA 루프 복귀 시 OOM 방지)
-    del model, processor
+    del model
     torch.cuda.empty_cache()
 
-    return total_score / match_count if match_count > 0 else 0.0
+    if not scores:
+        return None
 
-
-def main():
-    data_root = "./fft_data"
-    # gen_0, gen_1, gen_2 ... 폴더 숫자에 맞춰 정렬 탐색
-    gen_folders = sorted(glob(os.path.join(data_root, "gen_*")), key=lambda x: int(x.split("_")[-1]))
-
-    print(f"\n=========================================")
-    print(f"📊 CLIP Score Evaluation Matrix (FFT Tracks)")
-    print(f"=========================================\n")
-
-    results = {}
-    for gen_dir in gen_folders:
-        gen_num = int(gen_dir.split("_")[-1])
-        # 0세대는 소스 이미지 정보이므로 프롬프트 정렬 점수 비교군으로 사용하거나 스킵 가능
-        score = calculate_generation_clip_score(gen_dir)
-
-        if score is not None:
-            results[gen_num] = score
-            print(f"Generation {gen_num:2d}: CLIP Score = {score:.4f}")
-        else:
-            print(f"Generation {gen_num:2d}: metadata.jsonl 미검출 (스킵)")
-
-    # 향후 논문 그래프 플로팅(matplotlib)용 JSON 로그 저장
-    with open(os.path.join(data_root, "clip_scores_report.json"), "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4)
-
-    print(f"\n[+] 리포트 저장 완료: {data_root}/clip_scores_report.json")
+    return float(sum(scores) / len(scores))
 
 
 if __name__ == "__main__":
-    main()
+    generations = int(os.environ.get("GENERATIONS", 20))
+    data_root = "./fft_data"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    results = {}
+    for gen in range(generations):
+        gen_dir = os.path.join(data_root, f"gen_{gen}")
+        if not os.path.exists(gen_dir):
+            continue
+
+        print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Calculate CLIP score{Style.RESET_ALL}")
+        score = calculate_clip_score(gen_dir, device=device)
+
+        if score is not None:
+            results[f"Gen_{gen}"] = score
+            print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: CLIP score is {Fore.GREEN}{score:.4f}{Style.RESET_ALL}")
+
+    report_path = os.path.join(data_root, "clip_scores_report.json")
+    with open(report_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=4)
+
+    print("\n=== CLIP Score Evaluation Summary ===")
+    for gen, score in results.items():
+        print(f"{gen}: {score:.4f}")
+    print(f"\nReport saved: {report_path}")
