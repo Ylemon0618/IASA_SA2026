@@ -242,7 +242,7 @@ class LoRAResearchPipeline:
         for gen in range(start_gen, self.total_gens):
             if gen == 0:
                 gen_0_dir = f"{self.output_root}/gen_0/images"
-                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.jpg")) == 0:
+                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.png")) == 0:
                     print(
                         f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Seed images not found in '{gen_0_dir}'. Please provide source images.{Fore.RESET}")
                     sys.exit(1)
