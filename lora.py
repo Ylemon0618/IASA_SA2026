@@ -101,8 +101,7 @@ class LoRAResearchPipeline:
         if self.current_lora and os.path.exists(self.current_lora):
             print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Merging LoRA weights from: {self.current_lora}{Fore.RESET}")
             pipe.load_lora_weights(self.current_lora)
-            # 어댑터를 베이스에 머지하고 언로드 → FFT처럼 누적 오염 방지
-            pipe.merge_and_unload()
+            pipe.unet = pipe.unet.merge_and_unload()
 
         for i in range(count):
             prompt = random.choice(self.prompt_pool)
