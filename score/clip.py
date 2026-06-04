@@ -1,6 +1,5 @@
 import os
 import json
-from glob import glob
 import torch
 import torch.nn.functional as F
 from PIL import Image
@@ -42,7 +41,7 @@ def calculate_clip_score(gen_dir, device="cuda"):
             continue
         try:
             image = Image.open(img_path).convert("RGB")
-            inputs = processor(text=[text], images=image, return_tensors="pt", padding=True).to(device)
+            inputs = processor(text=[text], images=image, return_tensors="pt", padding=True, truncation=True, max_length=77).to(device)
             inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
 
             outputs = model(**inputs)
@@ -82,11 +81,6 @@ if __name__ == "__main__":
             results[f"Gen_{gen}"] = score
             print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: CLIP score is {Fore.GREEN}{score:.4f}{Style.RESET_ALL}")
 
-    report_path = os.path.join(data_root, "clip_scores_report.json")
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4)
-
     print("\n=== CLIP Score Evaluation Summary ===")
     for gen, score in results.items():
         print(f"{gen}: {score:.4f}")
-    print(f"\nReport saved: {report_path}")
