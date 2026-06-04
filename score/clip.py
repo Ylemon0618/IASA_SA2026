@@ -12,7 +12,7 @@ load_dotenv()
 
 
 @torch.no_grad()
-def calculate_clip_score(gen_dir, device="cuda"):
+def calculate_clip_score(gen_dir, model, processor, device="cuda"):
     images_dir = os.path.join(gen_dir, "images")
     metadata_path = os.path.join(images_dir, "metadata.jsonl")
 
@@ -30,10 +30,6 @@ def calculate_clip_score(gen_dir, device="cuda"):
         print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.MAGENTA}{gen_dir}{Fore.RED}: No caption in metadata.jsonl{Style.RESET_ALL}")
         return None
 
-    model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(device).to(torch.float16)
-    model.eval()
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
-
     scores = []
     for img_name, text in tqdm(captions.items(), desc=f"CLIP {os.path.basename(gen_dir)}", leave=False):
         img_path = os.path.join(images_dir, img_name)
@@ -44,18 +40,15 @@ def calculate_clip_score(gen_dir, device="cuda"):
             inputs = processor(text=[text], images=image, return_tensors="pt", padding=True, truncation=True, max_length=77).to(device)
             inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
 
-            outputs = model(**inputs)
             img_emb = F.normalize(model.get_image_features(pixel_values=inputs["pixel_values"]), dim=-1)
             txt_emb = F.normalize(model.get_text_features(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"]
             ), dim=-1)
             scores.append((img_emb * txt_emb).sum().item())
-        except Exception:
+        except Exception as e:
+            print(f"{Fore.RED}  [CLIP] Error on {img_name}: {e}{Style.RESET_ALL}")
             continue
-
-    del model
-    torch.cuda.empty_cache()
 
     if not scores:
         return None
@@ -68,6 +61,11 @@ if __name__ == "__main__":
     data_root = "./fft_data"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.WHITE}Loading CLIP model...{Style.RESET_ALL}")
+    model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(device).to(torch.float16)
+    model.eval()
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+
     results = {}
     for gen in range(generations):
         gen_dir = os.path.join(data_root, f"gen_{gen}")
@@ -75,11 +73,14 @@ if __name__ == "__main__":
             continue
 
         print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Calculate CLIP score{Style.RESET_ALL}")
-        score = calculate_clip_score(gen_dir, device=device)
+        score = calculate_clip_score(gen_dir, model, processor, device=device)
 
         if score is not None:
             results[f"Gen_{gen}"] = score
             print(f"{Fore.BLUE}{'[CLIP]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: CLIP score is {Fore.GREEN}{score:.4f}{Style.RESET_ALL}")
+
+    del model
+    torch.cuda.empty_cache()
 
     print("\n=== CLIP Score Evaluation Summary ===")
     for gen, score in results.items():
