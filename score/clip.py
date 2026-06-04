@@ -40,11 +40,9 @@ def calculate_clip_score(gen_dir, model, processor, device="cuda"):
             inputs = processor(text=[text], images=image, return_tensors="pt", padding=True, truncation=True, max_length=77).to(device)
             inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
 
-            img_emb = F.normalize(model.get_image_features(pixel_values=inputs["pixel_values"]), dim=-1)
-            txt_emb = F.normalize(model.get_text_features(
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"]
-            ), dim=-1)
+            outputs = model(**inputs)
+            img_emb = F.normalize(outputs.image_embeds.float(), dim=-1)
+            txt_emb = F.normalize(outputs.text_embeds.float(), dim=-1)
             scores.append((img_emb * txt_emb).sum().item())
         except Exception as e:
             print(f"{Fore.RED}  [CLIP] Error on {img_name}: {e}{Style.RESET_ALL}")
