@@ -1,12 +1,11 @@
 import json
 import logging
 import os
-import subprocess
-import warnings
 import random
+import subprocess
 import sys
+import warnings
 from glob import glob
-from colorama import Fore, Style
 
 import torch
 from PIL import Image
@@ -14,7 +13,7 @@ from diffusers import DiffusionPipeline
 from dotenv import load_dotenv
 from tqdm import tqdm
 from transformers import logging as tf_logging
-from transformers import pipeline as tf_pipeline
+from transformers import pipeline as tf_pipeline, BitsAndBytesConfig
 
 from modules.measures import *
 
@@ -28,7 +27,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub"
 
 class LoRAResearchPipeline:
     def __init__(self, base_model_path, total_gens=20):
-        self.current_model = base_model_path
+        self.base_model_path = base_model_path  # 원본 베이스 모델 고정 참조용
+        self.current_model = base_model_path  # 이미지 생성에 사용할 현재 모델
         self.current_lora = None
         self.total_gens = total_gens
         self.output_root = "./lora_data"
@@ -90,17 +90,19 @@ class LoRAResearchPipeline:
 
         os.makedirs(save_path, exist_ok=True)
 
+        # FFT와 동일하게: 베이스 모델에 최신 LoRA를 머지한 파이프라인으로 생성
+        is_hub_model = not os.path.isdir(self.base_model_path)
         pipe = DiffusionPipeline.from_pretrained(
-            self.current_model,
-            dtype=torch.float16,
-            variant="fp16"
+            self.base_model_path,
+            torch_dtype=torch.float16,
+            variant="fp16" if is_hub_model else None
         ).to(self.device)
 
         if self.current_lora and os.path.exists(self.current_lora):
-            print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Loading LoRA weights from: {self.current_lora}{Fore.RESET}")
+            print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Merging LoRA weights from: {self.current_lora}{Fore.RESET}")
             pipe.load_lora_weights(self.current_lora)
-
-        pipe.to(device="cuda", dtype=torch.float16)
+            # 어댑터를 베이스에 머지하고 언로드 → FFT처럼 누적 오염 방지
+            pipe.merge_and_unload()
 
         for i in range(count):
             prompt = random.choice(self.prompt_pool)
@@ -112,7 +114,7 @@ class LoRAResearchPipeline:
 
         print(
             f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
-            end=' ')
+            end='\n')
 
     @measure_time
     def caption_images(self, gen_num):
@@ -121,14 +123,12 @@ class LoRAResearchPipeline:
         metadata = []
 
         metadata_path = os.path.join(save_dir, "metadata.jsonl")
-        image_files = glob(os.path.join(save_dir, "*.png"))
-        total_images = len(image_files)
+        total_images = len(img_paths)
 
         if os.path.exists(metadata_path):
             with open(metadata_path, "r", encoding="utf-8") as f:
                 existing_captions = f.readlines()
-
-            if len(existing_captions) >= total_images:
+            if len(existing_captions) >= total_images and total_images > 0:
                 print(
                     f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
                 return
@@ -136,14 +136,20 @@ class LoRAResearchPipeline:
         print(
             f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
 
+        # FFT와 동일하게: 4bit quantization으로 LLaVA 로드
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4"
+        )
+
         captioner = tf_pipeline(
             "image-text-to-text",
             model="llava-hf/llava-1.5-7b-hf",
-            device=0,
-            model_kwargs={"dtype": torch.float16}
+            model_kwargs={"quantization_config": bnb_config}
         )
 
-        for i, img_path in enumerate(tqdm(img_paths, desc="Captioning Progress")):
+        for img_path in tqdm(img_paths, desc="Captioning Progress"):
             raw_image = Image.open(img_path).convert("RGB")
             prompt = "USER: <image>\nDescribe this image in detail.\nASSISTANT:"
             outputs = captioner(
@@ -157,14 +163,13 @@ class LoRAResearchPipeline:
             )
 
             caption = outputs[0]['generated_text'].split("ASSISTANT:")[-1].strip()
-
             file_name = os.path.basename(img_path)
             metadata.append({"file_name": file_name, "text": caption})
 
-            with open(f"{save_dir}/{file_name.replace('.png', '.txt')}", "w") as f_txt:
+            with open(f"{save_dir}/{file_name.replace('.png', '.txt')}", "w", encoding="utf-8") as f_txt:
                 f_txt.write(caption)
 
-        with open(f"{save_dir}/metadata.jsonl", 'w') as f:
+        with open(metadata_path, 'w', encoding="utf-8") as f:
             for entry in metadata:
                 f.write(json.dumps(entry) + "\n")
 
@@ -173,37 +178,68 @@ class LoRAResearchPipeline:
 
         print(
             f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}",
-            end=' ')
+            end='\n')
 
     @measure_time
     def run_lora_train(self, gen_num):
         next_gen = gen_num + 1
+        output_dir = f"./models/lora_gen_{next_gen}"
 
-        if os.path.exists(f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"):
+        if os.path.exists(f"{output_dir}/pytorch_lora_weights.safetensors"):
             print(
                 f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA existing. Jumping training.{Fore.RESET}")
-            self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
+            self.current_lora = f"{output_dir}/pytorch_lora_weights.safetensors"
             return
 
         print(
             f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
+        # 매 세대 항상 베이스 모델 기준으로 학습 → FFT처럼 이전 세대 오염 차단
         subprocess.run([
             "bash", "lora_pilot.sh",
-            f"--pretrained_model_name_or_path={self.current_model}",
+            f"--pretrained_model_name_or_path={self.base_model_path}",
             f"--train_data_dir={self.output_root}/gen_{gen_num}/images",
-            f"--output_dir=./models/lora_gen_{next_gen}",
+            f"--output_dir={output_dir}",
         ], check=True)
 
-        self.current_lora = f"./models/lora_gen_{next_gen}/pytorch_lora_weights.safetensors"
+        self.current_lora = f"{output_dir}/pytorch_lora_weights.safetensors"
         print(
             f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training End{Style.RESET_ALL}",
-            end=' ')
+            end='\n')
+
+    def auto_detect_start(self):
+        completed = []
+        for path in glob("./models/lora_gen_*/pytorch_lora_weights.safetensors"):
+            try:
+                gen_n = int(path.split("lora_gen_")[1].split("/")[0])
+                completed.append(gen_n)
+            except (IndexError, ValueError):
+                continue
+
+        if not completed:
+            return 0, None
+
+        latest = max(completed)
+        lora_path = f"./models/lora_gen_{latest}/pytorch_lora_weights.safetensors"
+        print(
+            f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}Resume detected: lora_gen_{latest} found. "
+            f"Resuming from generation {latest}.{Fore.RESET}")
+        return latest, lora_path
 
     def run(self):
         print(f"{Fore.GREEN}=== LoRA Pipeline Running ==={Style.RESET_ALL}")
 
-        for gen in range(self.total_gens):
+        env_start = os.environ.get("START_GEN")
+        if env_start is not None:
+            start_gen = int(env_start)
+            if start_gen > 0:
+                self.current_lora = f"./models/lora_gen_{start_gen}/pytorch_lora_weights.safetensors"
+                print(
+                    f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}START_GEN={start_gen} set.{Fore.RESET}")
+        else:
+            start_gen, self.current_lora = self.auto_detect_start()
+
+        for gen in range(start_gen, self.total_gens):
             if gen == 0:
                 gen_0_dir = f"{self.output_root}/gen_0/images"
                 if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.jpg")) == 0:

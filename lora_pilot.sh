@@ -1,11 +1,42 @@
-PYTHONWARNINGS="ignore" TRANSFORMERS_VERBOSITY="error" accelerate launch /workspace/diffusers/examples/text_to_image/train_text_to_image_lora_sdxl.py \
-  --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
+PRETRAINED_MODEL=""
+TRAIN_DATA_DIR=""
+OUTPUT_DIR=""
+
+for arg in "$@"; do
+  case $arg in
+    --pretrained_model_name_or_path=*) PRETRAINED_MODEL="${arg#*=}" ;;
+    --train_data_dir=*) TRAIN_DATA_DIR="${arg#*=}" ;;
+    --output_dir=*) OUTPUT_DIR="${arg#*=}" ;;
+  esac
+done
+
+if [ -z "$PRETRAINED_MODEL" ] || [ -z "$TRAIN_DATA_DIR" ] || [ -z "$OUTPUT_DIR" ]; then
+  echo "Usage: lora_pilot.sh --pretrained_model_name_or_path=... --train_data_dir=... --output_dir=..."
+  exit 1
+fi
+
+export PYTHONWARNINGS="ignore"
+export TRANSFORMERS_VERBOSITY="error"
+export HTTPX_LOG_LEVEL=WARNING
+export DIFFUSERS_VERBOSITY=warning
+export HF_HUB_VERBOSITY=warning
+
+SCRIPT="/workspace/diffusers/examples/text_to_image/train_text_to_image_lora_sdxl.py"
+if [ ! -f "$SCRIPT" ]; then
+  echo "Script not found: $SCRIPT"
+  echo "Run: git clone https://github.com/huggingface/diffusers.git"
+  exit 1
+fi
+
+accelerate launch "$SCRIPT" \
+  --pretrained_model_name_or_path="$PRETRAINED_MODEL" \
+  --train_data_dir="$TRAIN_DATA_DIR" \
   --resolution=1024 \
-  --output_dir="./sdxl-lora-pilot" \
-  --mixed_precision="bf16" \
-  --train_batch_size=4 \
-  --gradient_accumulation_steps=2 \
-  --learning_rate=1e-4 \
+  --output_dir="$OUTPUT_DIR" \
+  --mixed_precision="fp16" \
+  --train_batch_size=1 \
+  --gradient_accumulation_steps=4 \
+  --learning_rate=1e-6 \
   --lr_scheduler="constant" \
   --lr_warmup_steps=0 \
   --max_train_steps=500 \
@@ -13,5 +44,6 @@ PYTHONWARNINGS="ignore" TRANSFORMERS_VERBOSITY="error" accelerate launch /worksp
   --seed=42 \
   --rank=32 \
   --gradient_checkpointing \
+  --use_8bit_adam \
   --report_to="tensorboard" \
   "$@"
