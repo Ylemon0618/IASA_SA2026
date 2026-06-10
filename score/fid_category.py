@@ -1,7 +1,10 @@
 import json
 import os
 import shutil
+import ssl
 import tempfile
+
+ssl._create_default_https_context = ssl._create_unverified_context
 
 import pytorch_fid.fid_score as fid_core
 import torch
