@@ -80,7 +80,7 @@ class LoRAResearchPipeline:
     @measure_time
     def generate_images(self, gen_num, count=100):
         save_path = f"{self.output_root}/gen_{gen_num}/images"
-        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
+        if os.path.exists(save_path) and len(glob(f"{save_path}/*.jpg")) >= count:
             print(
                 f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
             return
@@ -106,7 +106,7 @@ class LoRAResearchPipeline:
         for i in range(count):
             prompt = random.choice(self.prompt_pool)
             image = pipe(prompt).images[0]
-            image.save(f"{save_path}/img_{i:05d}.png")
+            image.save(f"{save_path}/img_{i:05d}.jpg")
 
         del pipe
         torch.cuda.empty_cache()
@@ -118,7 +118,7 @@ class LoRAResearchPipeline:
     @measure_time
     def caption_images(self, gen_num):
         save_dir = f"{self.output_root}/gen_{gen_num}/images"
-        img_paths = glob(f"{save_dir}/*.png")
+        img_paths = glob(f"{save_dir}/*.jpg")
         metadata = []
 
         metadata_path = os.path.join(save_dir, "metadata.jsonl")
@@ -127,7 +127,7 @@ class LoRAResearchPipeline:
         if os.path.exists(metadata_path):
             with open(metadata_path, "r", encoding="utf-8") as f:
                 existing_captions = f.readlines()
-            if len(existing_captions) >= total_images and total_images > 0:
+            if len(existing_captions) >= total_images > 0:
                 print(
                     f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
                 return
@@ -165,7 +165,7 @@ class LoRAResearchPipeline:
             file_name = os.path.basename(img_path)
             metadata.append({"file_name": file_name, "text": caption})
 
-            with open(f"{save_dir}/{file_name.replace('.png', '.txt')}", "w", encoding="utf-8") as f_txt:
+            with open(f"{save_dir}/{file_name.replace('.jpg', '.txt')}", "w", encoding="utf-8") as f_txt:
                 f_txt.write(caption)
 
         with open(metadata_path, 'w', encoding="utf-8") as f:
@@ -241,7 +241,7 @@ class LoRAResearchPipeline:
         for gen in range(start_gen, self.total_gens):
             if gen == 0:
                 gen_0_dir = f"{self.output_root}/gen_0/images"
-                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.png")) == 0:
+                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.jpg")) == 0:
                     print(
                         f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Seed images not found in '{gen_0_dir}'. Please provide source images.{Fore.RESET}")
                     sys.exit(1)
