@@ -45,5 +45,4 @@ accelerate launch "$SCRIPT" \
   --rank=32 \
   --gradient_checkpointing \
   --use_8bit_adam \
-  --report_to="tensorboard" \
-  "$@"
+  --report_to="tensorboard"
