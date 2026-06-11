@@ -108,7 +108,9 @@ class LoRAResearchPipeline:
             merged_dir = self.current_lora.replace("pytorch_lora_weights.safetensors", "merged")
             if not os.path.exists(os.path.join(merged_dir, "model_index.json")):
                 print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Saving merged model to: {merged_dir}{Fore.RESET}")
+                pipe.to("cpu", dtype=torch.float32)
                 pipe.save_pretrained(merged_dir)
+                pipe.to(self.device, dtype=torch.float16)
             self.current_model = merged_dir
 
         for i in range(count):
