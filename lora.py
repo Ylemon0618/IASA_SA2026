@@ -96,7 +96,8 @@ class LoRAResearchPipeline:
         pipe = DiffusionPipeline.from_pretrained(
             self.base_model_path,
             torch_dtype=torch.float16,
-            variant="fp16" if is_hub_model else None
+            variant="fp16" if is_hub_model else None,
+            low_cpu_mem_usage=False,
         ).to(self.device)
 
         if self.current_lora and os.path.exists(self.current_lora):
