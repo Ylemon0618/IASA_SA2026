@@ -80,7 +80,8 @@ class LoRAResearchPipeline:
     @measure_time
     def generate_images(self, gen_num, count=100):
         save_path = f"{self.output_root}/gen_{gen_num}/images"
-        if os.path.exists(save_path) and len(glob(f"{save_path}/*.jpg")) >= count:
+        ext = "jpg" if gen_num == 0 else "png"
+        if os.path.exists(save_path) and len(glob(f"{save_path}/*.{ext}")) >= count:
             print(
                 f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
             return
@@ -103,10 +104,17 @@ class LoRAResearchPipeline:
             pipe.load_lora_weights(self.current_lora)
             pipe.fuse_lora()
 
+            # 머지된 모델을 저장해 다음 세대 LoRA 학습의 베이스로 사용 (FFT와 동일한 누적 구조)
+            merged_dir = self.current_lora.replace("pytorch_lora_weights.safetensors", "merged")
+            if not os.path.exists(os.path.join(merged_dir, "model_index.json")):
+                print(f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.WHITE}Saving merged model to: {merged_dir}{Fore.RESET}")
+                pipe.save_pretrained(merged_dir)
+            self.current_model = merged_dir
+
         for i in range(count):
             prompt = random.choice(self.prompt_pool)
             image = pipe(prompt).images[0]
-            image.save(f"{save_path}/img_{i:05d}.jpg")
+            image.save(f"{save_path}/img_{i:05d}.{ext}")
 
         del pipe
         torch.cuda.empty_cache()
@@ -118,7 +126,7 @@ class LoRAResearchPipeline:
     @measure_time
     def caption_images(self, gen_num):
         save_dir = f"{self.output_root}/gen_{gen_num}/images"
-        img_paths = glob(f"{save_dir}/*.jpg")
+        img_paths = glob(f"{save_dir}/*.jpg") + glob(f"{save_dir}/*.png")
         metadata = []
 
         metadata_path = os.path.join(save_dir, "metadata.jsonl")
@@ -165,7 +173,7 @@ class LoRAResearchPipeline:
             file_name = os.path.basename(img_path)
             metadata.append({"file_name": file_name, "text": caption})
 
-            with open(f"{save_dir}/{file_name.replace('.jpg', '.txt')}", "w", encoding="utf-8") as f_txt:
+            with open(f"{save_dir}/{os.path.splitext(file_name)[0]}.txt", "w", encoding="utf-8") as f_txt:
                 f_txt.write(caption)
 
         with open(metadata_path, 'w', encoding="utf-8") as f:
@@ -193,10 +201,9 @@ class LoRAResearchPipeline:
         print(
             f"{Fore.YELLOW}{'[LoRA]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: LoRA Training Start{Style.RESET_ALL}")
 
-        # 매 세대 항상 베이스 모델 기준으로 학습 → FFT처럼 이전 세대 오염 차단
         subprocess.run([
             "bash", "lora_pilot.sh",
-            f"--pretrained_model_name_or_path={self.base_model_path}",
+            f"--pretrained_model_name_or_path={self.current_model}",
             f"--train_data_dir={self.output_root}/gen_{gen_num}/images",
             f"--output_dir={output_dir}",
         ], check=True)
@@ -241,7 +248,8 @@ class LoRAResearchPipeline:
         for gen in range(start_gen, self.total_gens):
             if gen == 0:
                 gen_0_dir = f"{self.output_root}/gen_0/images"
-                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.jpg")) == 0:
+                if not os.path.exists(gen_0_dir) or len(glob(f"{gen_0_dir}/*.jpg")) + len(
+                        glob(f"{gen_0_dir}/*.png")) == 0:
                     print(
                         f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Seed images not found in '{gen_0_dir}'. Please provide source images.{Fore.RESET}")
                     sys.exit(1)
