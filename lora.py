@@ -92,9 +92,9 @@ class LoRAResearchPipeline:
         os.makedirs(save_path, exist_ok=True)
 
         # FFT와 동일하게: 베이스 모델에 최신 LoRA를 머지한 파이프라인으로 생성
-        is_hub_model = not os.path.isdir(self.base_model_path)
+        is_hub_model = not os.path.isdir(self.current_model)
         pipe = DiffusionPipeline.from_pretrained(
-            self.base_model_path,
+            self.current_model,
             torch_dtype=torch.float16,
             variant="fp16" if is_hub_model else None,
             low_cpu_mem_usage=False,
