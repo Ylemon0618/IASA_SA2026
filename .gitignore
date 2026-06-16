@@ -1,0 +1,7 @@
+.claude
+.venv
+bin
+fft_data
+lora_data
+models
+.env
