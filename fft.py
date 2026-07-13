@@ -1,19 +1,17 @@
-import os
 import json
+import logging
+import os
 import random
+import subprocess
 import sys
 import warnings
-import logging
 from glob import glob
-from colorama import Fore, Style
 
 import torch
-import subprocess
 from PIL import Image
+from diffusers import DiffusionPipeline
 from dotenv import load_dotenv
 from tqdm import tqdm
-
-from diffusers import DiffusionPipeline
 from transformers import logging as tf_logging
 from transformers import pipeline as tf_pipeline, BitsAndBytesConfig
 
@@ -42,42 +40,28 @@ Image.open = patched_open
 
 
 class FFTResearchPipeline:
-    def __init__(self, base_model_path, total_gens=20):
+    def __init__(self, base_model_path, total_gens=20, prompt_pool_path="synthetic_image_prompts.json"):
         self.current_model = base_model_path
         self.total_gens = total_gens
-        self.output_root = "./fft_data"
+
+        self.output_root = os.environ.get("DATASET_PATH", "./fft_data")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.prompt_pool = [
-            "A wooden fishing boat anchored near a rocky shore with calm blue water",
-            "A large cargo ship traveling through the open sea under rain clouds",
-            "Two people rowing a small wooden canoe on a peaceful city river",
-            "A majestic sailboat at sea with white sails catching the wind",
-            "A group of friends holding green beer bottles at an outdoor party",
-            "A clear glass bottle of soda sitting on a messy kitchen counter",
-            "A man pouring red wine from a bottle into a glass at a dinner table",
-            "A close-up of an open refrigerator with food and colorful juice bottles",
-            "A red double decker bus driving down a wet city street in the afternoon",
-            "A yellow school bus stopped on the road with its door wide open",
-            "A large white tour bus parked in a crowded station next to a brick building",
-            "A vintage green trolley passing by a park garden and a low fence",
-            "A shiny silver sports car parked in front of a modern brick building",
-            "A black truck driving through a rural highway with trees in the distance",
-            "A clean white minivan parked inside a garage with a blurry background",
-            "A race car drifting along a dirt road, kicking up a cloud of dust",
-            "A grey tabby cat sitting on a wooden chair by a sunny kitchen window",
-            "A fluffy ginger cat sleeping on a sofa with a blanket underneath",
-            "A small white cat with bright eyes looking up from beneath a table",
-            "A black and white cat stretching its body on a patterned rug",
-            "An empty wooden rocking chair in a dimly lit living room with patterned fabric",
-            "A modern black office chair placed next to a cluttered desk with a computer",
-            "A couple of people sitting on red folding chairs in a backyard garden",
-            "A dining table surrounded by four matching wooden chairs in a quiet apartment",
-            "A black and white cow grazing in a lush green pasture near a fence",
-            "A small calf resting on a bed of dry straw inside a wooden barn",
-            "A group of brown cows standing near a water trough under a big tree",
-            "A large dark bull standing behind a metal wire fence on a remote farm"
-        ]
+        if os.path.exists(prompt_pool_path):
+            with open(prompt_pool_path, "r", encoding="utf-8") as f:
+                self.category_prompts = json.load(f)
+
+            self.flat_prompt_pool = []
+            for cat, p_list in self.category_prompts.items():
+                self.flat_prompt_pool.extend(p_list)
+
+            print(
+                f"{Fore.GREEN}[SYSTEM] Successfully loaded {len(self.flat_prompt_pool)} synthetic prompts across {len(self.category_prompts)} categories from '{prompt_pool_path}'.{Style.RESET_ALL}")
+        else:
+            print(
+                f"{Fore.RED}[SYSTEM] Critical Error: '{prompt_pool_path}' not found! Please run the prompt generation first.{Style.RESET_ALL}")
+            sys.exit(1)
+
         os.makedirs(self.output_root, exist_ok=True)
 
     @measure_time
@@ -86,11 +70,11 @@ class FFTResearchPipeline:
 
         if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
             print(
-                f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All image generated. Jumping generation.{Fore.RESET}")
+                f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All images already generated. Skipping generation.{Fore.RESET}")
             return
 
         print(
-            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Start{Style.RESET_ALL}")
+            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting SDXL Image Synthesis{Style.RESET_ALL}")
         os.makedirs(save_path, exist_ok=True)
 
         is_hub_model = not os.path.isdir(self.current_model)
@@ -100,8 +84,15 @@ class FFTResearchPipeline:
             variant="fp16" if is_hub_model else None
         ).to(self.device)
 
-        for i in range(count):
-            prompt = random.choice(self.prompt_pool)
+        sampling_pool = []
+        while len(sampling_pool) < count:
+            shuffled_pool = list(self.flat_prompt_pool)
+            random.shuffle(shuffled_pool)
+            sampling_pool.extend(shuffled_pool)
+
+        final_prompts = sampling_pool[:count]
+
+        for i, prompt in enumerate(tqdm(final_prompts, desc=f"Gen {gen_num} Image Progress")):
             image = pipe(prompt).images[0]
             image.save(f"{save_path}/img_{i:05d}.png")
 
@@ -109,7 +100,7 @@ class FFTResearchPipeline:
         torch.cuda.empty_cache()
 
         print(
-            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis End{Style.RESET_ALL}",
+            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Finished{Style.RESET_ALL}",
             end='\n')
 
     @measure_time
@@ -126,11 +117,11 @@ class FFTResearchPipeline:
                 existing_captions = f.readlines()
             if len(existing_captions) >= total_images and total_images > 0:
                 print(
-                    f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All caption existing. Jumping captioning.{Fore.RESET}")
+                    f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All captions already exist. Skipping captioning.{Fore.RESET}")
                 return
 
         print(
-            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Start{Style.RESET_ALL}")
+            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting Llava Captioning{Style.RESET_ALL}")
 
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -173,7 +164,7 @@ class FFTResearchPipeline:
         torch.cuda.empty_cache()
 
         print(
-            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning End{Style.RESET_ALL}",
+            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Finished{Style.RESET_ALL}",
             end='\n')
 
     @measure_time
@@ -183,12 +174,12 @@ class FFTResearchPipeline:
 
         if os.path.exists(os.path.join(output_dir, "model_index.json")):
             print(
-                f"{Fore.YELLOW}{'[FFT]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Model existing. Jumping training.{Fore.RESET}")
+                f"{Fore.YELLOW}{'[FFT]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Model already exists. Skipping training.{Fore.RESET}")
             self.current_model = output_dir
             return
 
         print(
-            f"{Fore.YELLOW}{'[FFT]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Fine-tuning Start{Style.RESET_ALL}")
+            f"{Fore.YELLOW}{'[FFT]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting Full Fine-tuning{Style.RESET_ALL}")
 
         subprocess.run([
             "bash", "fft_pilot.sh",
@@ -200,7 +191,7 @@ class FFTResearchPipeline:
         self.current_model = output_dir
 
         print(
-            f"{Fore.YELLOW}{'[FFT]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Fine-tuning End{Style.RESET_ALL}",
+            f"{Fore.YELLOW}{'[FFT]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Fine-tuning Finished{Style.RESET_ALL}",
             end='\n')
 
     def auto_detect_start(self):
@@ -225,7 +216,6 @@ class FFTResearchPipeline:
     def run(self):
         print(f"{Fore.GREEN}=== FFT Pipeline Running ==={Style.RESET_ALL}")
 
-        # 시작 세대 결정: 환경변수 > 자동 감지
         env_start = os.environ.get("START_GEN")
         if env_start is not None:
             start_gen = int(env_start)
@@ -250,7 +240,7 @@ class FFTResearchPipeline:
                 self.caption_images(gen)
                 self.train_next_gen(gen)
             else:
-                self.generate_images(gen)
+                self.generate_images(gen, count=3000)
                 self.caption_images(gen)
                 self.train_next_gen(gen)
 
@@ -259,5 +249,6 @@ if __name__ == "__main__":
     model_path = os.environ.get("MODEL_PATH", "stabilityai/stable-diffusion-xl-base-1.0")
     generations = int(os.environ.get("GENERATIONS", 20))
 
-    pipeline = FFTResearchPipeline(base_model_path=model_path, total_gens=generations)
+    pipeline = FFTResearchPipeline(base_model_path=model_path, total_gens=generations,
+                                   prompt_pool_path="synthetic_image_prompts.json")
     pipeline.run()
