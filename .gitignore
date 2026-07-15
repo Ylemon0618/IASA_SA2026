@@ -2,6 +2,9 @@
 .venv
 bin
 fft_data
+fft_data_corrupted
+dataset
+dataset_corrupted
 lora_data
 models
 .env
