@@ -17,6 +17,8 @@ from transformers import BitsAndBytesConfig
 from transformers import logging as tf_logging
 from transformers import pipeline as tf_pipeline
 
+from modules.measures import measure_time
+
 load_dotenv()
 
 tf_logging.set_verbosity_error()
