@@ -67,9 +67,9 @@ def inject_label_noise(source_dir, target_root, error_rate_percent):
 
 
 if __name__ == "__main__":
-    dataset_path = os.environ.get("DATASET_PATH", "./fft_data")
+    dataset_path = os.environ.get("DATASET_PATH", "./dataset")
     SRC_DIR = f"{dataset_path}"
-    TARGET_ROOT = "./fft_data_corrupted"
+    TARGET_ROOT = "./dataset_corrupted"
 
     try:
         error_input = input("Enter target error rate percentage: ")
