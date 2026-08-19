@@ -39,7 +39,7 @@ accelerate launch "$SCRIPT" \
   --lr_scheduler="constant" \
   --lr_warmup_steps=0 \
   --max_train_steps=500 \
-  --checkpointing_steps=250 \
+  --checkpointing_steps=99999 \
   --seed=42 \
   --gradient_checkpointing \
   --use_8bit_adam \
