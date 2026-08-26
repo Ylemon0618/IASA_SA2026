@@ -8,42 +8,54 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 import pytorch_fid.fid_score as fid_core
 import torch
-from PIL import Image
 from colorama import Fore, Style
 from dotenv import load_dotenv
+from PIL import Image
 from pytorch_fid.fid_score import calculate_fid_given_paths
 
 load_dotenv()
 
-# 카테고리별 키워드 정의
 CATEGORIES = {
-    "Boat_Ship": [
-        "boat", "ship", "fishing boat", "cargo ship", "sailboat", "canoe",
-        "rowing", "vessel", "sailing", "anchor", "shore", "sea", "river", "water"
-    ],
-    "Bottle_Tabletop": [
-        "bottle", "wine", "beer", "soda", "juice", "drink", "glass",
-        "refrigerator", "kitchen", "pour", "tabletop", "counter", "dinner table"
-    ],
-    "Bus_Transport": [
-        "bus", "double decker", "school bus", "tour bus", "trolley", "tram",
-        "transit", "station"
-    ],
-    "Car": [
-        "car", "sports car", "minivan", "race car", "truck", "vehicle",
-        "driving", "parked", "drifting", "highway", "road", "garage"
-    ],
-    "Cat": [
-        "cat", "kitten", "tabby", "feline", "ginger cat"
-    ],
-    "Chair_Living": [
-        "chair", "rocking chair", "office chair", "folding chair", "sofa",
-        "couch", "dining", "furniture", "living room", "desk", "sitting"
-    ],
-    "Cow": [
-        "cow", "calf", "bull", "cattle", "livestock", "grazing", "barn",
-        "pasture", "farm", "straw"
-    ],
+    "Airplanes": ["airplane", "aircraft", "hangar", "runway", "airfield",
+                  "tarmac", "baggage carts", "fueling truck", "runway lights", "clouds",
+                  "sky", "flight", "plane", "jet", "aviation",
+                  "propeller", "cockpit", "wing", "landing gear", "airstrip"],
+    "Cars": ["car", "minivan", "race car", "sports car", "driveway",
+             "parking garage", "avenue", "skyscrapers", "traffic light", "pedestrians",
+             "sedan", "automobile", "coupe", "suv", "headlight",
+             "windshield", "bumper", "trunk", "parking lot", "vehicle"],
+    "Cats": ["cat", "kitten", "feline", "tabby", "scratching post",
+             "cat toy", "feathered", "kibble", "food bowl", "laundry",
+             "windowsill", "whiskers", "purr", "meow", "paws",
+             "litter box", "ginger cat", "catnip", "furry", "claw"],
+    "Dogs": ["dog", "puppy", "canine", "doghouse", "leash",
+             "tennis ball", "water bowl", "porch", "autumn forest", "barking",
+             "tail", "snout", "golden retriever", "bulldog", "poodle",
+             "hound", "terrier", "fetch", "fur", "doggy"],
+    "Motorcycles": ["motorcycle", "motorbike", "riding gloves", "helmet", "biker",
+                    "alleyway", "city intersection", "racing track", "finish line", "toolbox",
+                    "handlebars", "exhaust", "chopper", "scooter", "moped",
+                    "kickstand", "visor", "cruiser", "engine bay", "two-wheeler"],
+    "Trains": ["train", "subway platform", "railway station", "canyon bridge", "forest track",
+               "coastal rail", "signal tower", "overhead power cables", "schedule board", "cargo platform",
+               "passengers", "locomotive", "railroad", "boxcar", "track",
+               "caboose", "commuter", "express train", "rail", "depot"],
+    "Boats": ["boat", "ship", "marina dock", "ocean harbor", "tropical river",
+              "mountain lake", "morning bay", "swimming pool deck", "fishing rods", "life jackets",
+              "seagulls", "wooden dock", "vessel", "deck", "stern",
+              "canoe", "sailboat", "yacht", "kayak", "oar"],
+    "Bicycles": ["bicycle", "bike", "bike rack", "beach boardwalk", "cobblestone street",
+                 "park pathway", "mountain trail", "water bottle mounted", "canvas backpack", "streetlamps",
+                 "cyclist", "pedal", "frame", "chain", "cycling",
+                 "spokes", "saddle", "wheel", "kickstand bike", "handlebar basket"],
+    "Living Rooms": ["sofa", "couch", "flatscreen tv", "coffee table", "bookshelf",
+                     "floor lamp", "rustic cabin", "apartment corner", "open-plan house", "studio",
+                     "home theater", "interior", "living room", "cushion", "armchair",
+                     "fireplace", "rug", "curtains", "living space", "lounge"],
+    "Computers": ["computer", "pc", "monitor", "workstation", "gaming setup",
+                  "office desk", "co-working space", "study table", "mechanical keyboard", "rgb lights",
+                  "wireless mouse", "headphones", "mug of coffee", "notebooks and pens", "desktop",
+                  "laptop", "screen", "mousepad", "processor", "cpu"],
 }
 
 
@@ -58,11 +70,11 @@ class SafeFIDImageDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         path = self.files[i]
         try:
-            img = Image.open(path).convert('RGB')
+            img = Image.open(path).convert("RGB")
             if img.size != (1024, 1024):
                 img = img.resize((1024, 1024), Image.Resampling.BILINEAR)
         except Exception:
-            img = Image.new('RGB', (1024, 1024), (0, 0, 0))
+            img = Image.new("RGB", (1024, 1024), (0, 0, 0))
         if self.transforms is not None:
             img = self.transforms(img)
         return img
@@ -71,13 +83,16 @@ class SafeFIDImageDataset(torch.utils.data.Dataset):
 fid_core.ImageFolderDataset = SafeFIDImageDataset
 
 
-def classify_image(caption: str) -> str | None:
-    """캡션 키워드 매칭으로 카테고리 반환. 매칭 없으면 None."""
+def classify_image(caption: str) -> str:
+    """
+    캡션 키워드 매칭으로 카테고리 반환.
+    매칭되지 않는 경우 'Others' 반환.
+    """
     caption_lower = caption.lower()
     for category, keywords in CATEGORIES.items():
         if any(kw in caption_lower for kw in keywords):
             return category
-    return None
+    return "Others"
 
 
 def load_category_files(gen_dir: str) -> dict[str, list[str]]:
@@ -85,7 +100,8 @@ def load_category_files(gen_dir: str) -> dict[str, list[str]]:
     images_dir = os.path.join(gen_dir, "images")
     metadata_path = os.path.join(images_dir, "metadata.jsonl")
 
-    category_files: dict[str, list[str]] = {cat: [] for cat in CATEGORIES}
+    all_categories = list(CATEGORIES.keys()) + ["Others"]
+    category_files: dict[str, list[str]] = {cat: [] for cat in all_categories}
 
     if not os.path.exists(metadata_path):
         return category_files
@@ -97,24 +113,30 @@ def load_category_files(gen_dir: str) -> dict[str, list[str]]:
             if not os.path.exists(img_path):
                 continue
             category = classify_image(data["text"])
-            if category:
-                category_files[category].append(img_path)
+            category_files[category].append(img_path)
 
     return category_files
 
 
-def evaluate_category_fid(real_files: list[str], fake_files: list[str],
-                          category: str, gen: int, device: str = "cuda") -> float | None:
+def evaluate_category_fid(
+        real_files: list[str],
+        fake_files: list[str],
+        category: str,
+        gen: int,
+        device: str = "cuda",
+) -> float | None:
     if len(real_files) < 2 or len(fake_files) < 2:
         print(
             f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
             f"[{category}]{Fore.RED}: Not enough images "
-            f"(real={len(real_files)}, fake={len(fake_files)}){Style.RESET_ALL}")
+            f"(real={len(real_files)}, fake={len(fake_files)}){Style.RESET_ALL}"
+        )
         return None
 
-    # 임시 폴더에 심볼릭 링크 없이 경로만 넘기기 위해 파일 목록을 txt로 전달하는
-    # pytorch_fid의 내부 API를 우회 → 임시 디렉토리에 복사
-    with tempfile.TemporaryDirectory() as tmp_real, tempfile.TemporaryDirectory() as tmp_fake:
+    with (
+        tempfile.TemporaryDirectory() as tmp_real,
+        tempfile.TemporaryDirectory() as tmp_fake,
+    ):
         for p in real_files:
             shutil.copy(p, os.path.join(tmp_real, os.path.basename(p)))
         for p in fake_files:
@@ -126,12 +148,14 @@ def evaluate_category_fid(real_files: list[str], fake_files: list[str],
             )
             print(
                 f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
-                f"[{category}]: {Fore.GREEN}{fid_value:.4f}{Style.RESET_ALL}")
+                f"[{category}]: {Fore.GREEN}{fid_value:.4f}{Style.RESET_ALL}"
+            )
             return fid_value
         except Exception as e:
             print(
                 f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
-                f"[{category}]{Fore.RED}: Error ({e}){Style.RESET_ALL}")
+                f"[{category}]{Fore.RED}: Error ({e}){Style.RESET_ALL}"
+            )
             return None
 
 
@@ -140,13 +164,18 @@ if __name__ == "__main__":
     data_root = "./fft_data"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # gen_0 기준 카테고리별 파일 목록 로드
+    all_categories = list(CATEGORIES.keys()) + ["Others"]
+
     gen0_files = load_category_files(os.path.join(data_root, "gen_0"))
     for cat, files in gen0_files.items():
-        print(f"{Fore.WHITE}[gen_0] {cat}: {len(files)} images{Style.RESET_ALL}")
+        print(
+            f"{Fore.WHITE}[gen_0] {cat}: {len(files)} images{Style.RESET_ALL}"
+        )
 
-    # 결과: results[category][gen] = fid_value
-    results: dict[str, dict[int, float]] = {cat: {} for cat in CATEGORIES}
+    results: dict[str, dict[int, float]] = {cat: {} for cat in all_categories}
+    gen_file_counts: dict[int, dict[str, int]] = (
+        {}
+    )
 
     for gen in range(1, generations):
         gen_dir = os.path.join(data_root, f"gen_{gen}")
@@ -154,25 +183,30 @@ if __name__ == "__main__":
             continue
 
         print(
-            f"\n{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Category FID Start{Style.RESET_ALL}")
+            f"\n{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Category FID Start{Style.RESET_ALL}"
+        )
         gen_files = load_category_files(gen_dir)
+        gen_file_counts[gen] = {
+            cat: len(files) for cat, files in gen_files.items()
+        }
 
-        for category in CATEGORIES:
+        for category in all_categories:
             score = evaluate_category_fid(
                 real_files=gen0_files[category],
                 fake_files=gen_files[category],
                 category=category,
                 gen=gen,
-                device=device
+                device=device,
             )
             if score is not None:
                 results[category][gen] = score
 
-    # 요약 출력
-    print(f"\n{'=' * 60}")
+    print(f"\n{'=' * 85}")
     print("=== Category FID Evaluation Summary (vs gen_0) ===")
-    print(f"{'=' * 60}")
-    header = f"{'Category':<22}" + "".join(f"  Gen{g:<4}" for g in range(1, generations))
+    print(f"{'=' * 85}")
+    header = f"{'Category':<22}" + "".join(
+        f"  Gen{g:<4}" for g in range(1, generations)
+    )
     print(header)
     print("-" * len(header))
     for cat, gen_scores in results.items():
@@ -181,3 +215,53 @@ if __name__ == "__main__":
             val = gen_scores.get(gen)
             row += f"  {val:>7.2f}" if val is not None else f"  {'N/A':>7}"
         print(row)
+
+    weighted_with_others: dict[int, float] = {}
+    weighted_without_others: dict[int, float] = {}
+
+    for gen in range(1, generations):
+        counts = gen_file_counts.get(gen, {})
+
+        total_count_inc = sum(
+            counts.get(cat, 0)
+            for cat in all_categories
+            if gen in results[cat]
+        )
+        if total_count_inc > 0:
+            weighted_sum_inc = sum(
+                counts.get(cat, 0) * results[cat][gen]
+                for cat in all_categories
+                if gen in results[cat]
+            )
+            weighted_with_others[gen] = weighted_sum_inc / total_count_inc
+
+        total_count_exc = sum(
+            counts.get(cat, 0)
+            for cat in CATEGORIES.keys()
+            if gen in results[cat]
+        )
+        if total_count_exc > 0:
+            weighted_sum_exc = sum(
+                counts.get(cat, 0) * results[cat][gen]
+                for cat in CATEGORIES.keys()
+                if gen in results[cat]
+            )
+            weighted_without_others[gen] = weighted_sum_exc / total_count_exc
+
+    print(f"\n{'=' * 85}")
+    print("=== Aggregated Weighted Average FID Summary ===")
+    print(f"{'=' * 85}")
+
+    row_inc = f"{'With Others':<22}"
+    row_exc = f"{'Without Others':<22}"
+
+    for gen in range(1, generations):
+        v_inc = weighted_with_others.get(gen)
+        v_exc = weighted_without_others.get(gen)
+        row_inc += f"  {v_inc:>7.2f}" if v_inc is not None else f"  {'N/A':>7}"
+        row_exc += f"  {v_exc:>7.2f}" if v_exc is not None else f"  {'N/A':>7}"
+
+    print(header)
+    print("-" * len(header))
+    print(f"{Fore.YELLOW}{row_inc}{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}{row_exc}{Style.RESET_ALL}")
