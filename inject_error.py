@@ -19,7 +19,7 @@ def swap_txt_contents(file1_path, file2_path):
     with open(file1_path, "w", encoding="utf-8") as f1:
         f1.write(content2)
     with open(file2_path, "w", encoding="utf-8") as f2:
-        f1.write(content1)
+        f2.write(content1)
 
 
 def inject_label_noise(source_dir, target_root, error_rate_percent):
