@@ -8,6 +8,7 @@ import time
 import warnings
 from glob import glob
 
+import diffusers.utils.logging as df_logging
 import torch
 from PIL import Image
 from colorama import Fore, Style
@@ -22,10 +23,20 @@ from modules.measures import measure_time
 
 load_dotenv()
 
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+os.environ["DISABLE_TQDM"] = "True"  # HF 내부 다운로드 진행바 비활성화
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+
+warnings.filterwarnings("ignore")
+
+logging.getLogger("diffusers").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("httpx").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+
 tf_logging.set_verbosity_error()
-warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
-logging.getLogger("httpx").setLevel(logging.WARNING)
-warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub")
+df_logging.set_verbosity_error()
 
 original_open = Image.open
 
