@@ -42,7 +42,6 @@ Image.open = patched_open
 
 
 class FFTResearchPipeline:
-
     def __init__(
             self,
             base_model_path,
@@ -63,7 +62,8 @@ class FFTResearchPipeline:
 
             self.flat_prompt_pool = []
             for cat, p_list in self.category_prompts.items():
-                self.flat_prompt_pool.extend(p_list)
+                for p in p_list:
+                    self.flat_prompt_pool.append((cat, p))
 
             print(
                 f"{Fore.GREEN}[SYSTEM] Successfully loaded {len(self.flat_prompt_pool)} synthetic prompts across {len(self.category_prompts)} categories from '{prompt_pool_path}'.{Style.RESET_ALL}"
@@ -78,9 +78,10 @@ class FFTResearchPipeline:
 
     @measure_time
     def generate_images(self, gen_num, count=100):
-        save_path = f"{self.output_root}/gen_{gen_num}/images"
+        base_dir = f"{self.output_root}/gen_{gen_num}/images"
 
-        if os.path.exists(save_path) and len(glob(f"{save_path}/*.png")) >= count:
+        existing_images = glob(f"{base_dir}/**/*.png", recursive=True)
+        if os.path.exists(base_dir) and len(existing_images) >= count:
             print(
                 f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All images already generated. Skipping generation.{Fore.RESET}"
             )
@@ -89,7 +90,7 @@ class FFTResearchPipeline:
         print(
             f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting SDXL Image Synthesis{Style.RESET_ALL}"
         )
-        os.makedirs(save_path, exist_ok=True)
+        os.makedirs(base_dir, exist_ok=True)
 
         is_hub_model = not os.path.isdir(self.current_model)
         pipe = DiffusionPipeline.from_pretrained(
@@ -106,11 +107,14 @@ class FFTResearchPipeline:
 
         final_prompts = sampling_pool[:count]
 
-        for i, prompt in enumerate(
+        for i, (cat, prompt) in enumerate(
                 tqdm(final_prompts, desc=f"Gen {gen_num} Image Progress")
         ):
+            cat_dir = os.path.join(base_dir, cat)
+            os.makedirs(cat_dir, exist_ok=True)
+
             image = pipe(prompt).images[0]
-            image.save(f"{save_path}/img_{i:05d}.png")
+            image.save(os.path.join(cat_dir, f"img_{i:05d}.png"))
 
         del pipe
         torch.cuda.empty_cache()
@@ -123,7 +127,7 @@ class FFTResearchPipeline:
     @measure_time
     def caption_images(self, gen_num):
         save_dir = f"{self.output_root}/gen_{gen_num}/images"
-        img_paths = glob(f"{save_dir}/*.png")
+        img_paths = glob(f"{save_dir}/**/*.png", recursive=True)
         metadata = []
 
         metadata_path = os.path.join(save_dir, "metadata.jsonl")
@@ -173,14 +177,12 @@ class FFTResearchPipeline:
             caption = (
                 outputs[0]["generated_text"].split("ASSISTANT:")[-1].strip()
             )
-            file_name = os.path.basename(img_p)
-            metadata.append({"file_name": file_name, "text": caption})
 
-            with open(
-                    f"{save_dir}/{file_name.replace('.png', '.txt')}",
-                    "w",
-                    encoding="utf-8",
-            ) as f_txt:
+            rel_file_path = os.path.relpath(img_p, save_dir)
+            metadata.append({"file_name": rel_file_path, "text": caption})
+
+            txt_path = img_p.rsplit(".", 1)[0] + ".txt"
+            with open(txt_path, "w", encoding="utf-8") as f_txt:
                 f_txt.write(caption)
 
         with open(metadata_path, "w", encoding="utf-8") as f:
@@ -255,7 +257,7 @@ class FFTResearchPipeline:
         )
         return latest, model_path
 
-    def run(self):
+    def run(self, count):
         print(f"{Fore.GREEN}=== FFT Pipeline Running ==={Style.RESET_ALL}")
 
         env_start = os.environ.get("START_GEN")
@@ -286,7 +288,7 @@ class FFTResearchPipeline:
                 )
                 self.train_next_gen(gen, custom_train_dir=self.gen_0_data_dir)
             else:
-                self.generate_images(gen, count=3000)
+                self.generate_images(gen, count=count)
                 self.caption_images(gen)
                 self.train_next_gen(gen)
 
@@ -305,4 +307,4 @@ if __name__ == "__main__":
         prompt_pool_path="synthetic_image_prompts.json",
         gen_0_data_dir=gen_0_dataset,
     )
-    pipeline.run()
+    pipeline.run(3000)
