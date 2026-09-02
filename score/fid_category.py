@@ -12,8 +12,10 @@ import scipy.linalg
 _orig_sqrtm = scipy.linalg.sqrtm
 
 
-def _patched_sqrtm(A, blocksize=64, disp=True):
-    return _orig_sqrtm(A, blocksize=blocksize)
+def _patched_sqrtm(A, *args, **kwargs):
+    kwargs.pop("disp", None)
+    kwargs.pop("blocksize", None)
+    return _orig_sqrtm(A, *args, **kwargs)
 
 
 scipy.linalg.sqrtm = _patched_sqrtm
