@@ -7,6 +7,7 @@ from glob import glob
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
+# --- [SciPy sqrtm 호환성 및 언패킹 패치] ---
 import scipy.linalg
 
 _orig_sqrtm = scipy.linalg.sqrtm
@@ -23,6 +24,7 @@ def _patched_sqrtm(A, *args, **kwargs):
 
 
 scipy.linalg.sqrtm = _patched_sqrtm
+# ------------------------------------------
 
 import pytorch_fid.fid_score as fid_core
 import torch
@@ -33,6 +35,10 @@ from pytorch_fid.fid_score import calculate_fid_given_paths
 
 load_dotenv()
 
+# 최소 이미지 수 기준 (10장 미만 시 FID 측정 제외)
+MIN_SAMPLES = 10
+
+# 10개 카테고리별 키워드 (Computers 키워드 대폭 확장)
 CATEGORIES = {
     "Airplanes": [
         "airplane",
@@ -253,6 +259,17 @@ CATEGORIES = {
         "mousepad",
         "processor",
         "cpu",
+        "display",
+        "keyboard",
+        "mouse",
+        "desk",
+        "workspace",
+        "computer desk",
+        "monitor screen",
+        "dual monitors",
+        "pc tower",
+        "computer tower",
+        "macbook",
     ],
 }
 
@@ -336,10 +353,11 @@ def evaluate_category_fid(
         gen: int,
         device: str = "cuda",
 ) -> float | None:
-    if len(real_files) < 2 or len(fake_files) < 2:
+    # MIN_SAMPLES 미만 시 제외
+    if len(real_files) < MIN_SAMPLES or len(fake_files) < MIN_SAMPLES:
         print(
             f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
-            f"[{category}]{Fore.RED}: Not enough images "
+            f"[{category}]{Fore.RED}: Skipped < {MIN_SAMPLES} images "
             f"(real={len(real_files)}, fake={len(fake_files)}){Style.RESET_ALL}"
         )
         return None
@@ -359,7 +377,7 @@ def evaluate_category_fid(
             )
             print(
                 f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
-                f"[{category}]: {Fore.GREEN}{fid_value:.4f}{Style.RESET_ALL}"
+                f"[{category}] (R:{len(real_files)}, F:{len(fake_files)}): {Fore.GREEN}{fid_value:.4f}{Style.RESET_ALL}"
             )
             return fid_value
         except Exception as e:
@@ -417,21 +435,31 @@ if __name__ == "__main__":
             if score is not None:
                 results[category][gen] = score
 
-    print(f"\n{'=' * 85}")
-    print("=== Category FID Evaluation Summary (vs gen_0) ===")
-    print(f"{'=' * 85}")
+    # 1. 카테고리별 FID 및 이미지 수 표 출력
+    print(f"\n{'=' * 115}")
+    print(
+        f"=== Category FID Evaluation Summary (vs gen_0) [Format: FID (fake_count)] ==="
+    )
+    print(f"{'=' * 115}")
+
     header = f"{'Category':<22}" + "".join(
-        f"  Gen{g:<4}" for g in range(1, generations)
+        f"  Gen{g:<9}" for g in range(1, generations)
     )
     print(header)
     print("-" * len(header))
+
     for cat, gen_scores in results.items():
         row = f"{cat:<22}"
         for gen in range(1, generations):
             val = gen_scores.get(gen)
-            row += f"  {val:>7.2f}" if val is not None else f"  {'N/A':>7}"
+            cnt = gen_file_counts.get(gen, {}).get(cat, 0)
+            if val is not None:
+                row += f"  {val:>5.1f}({cnt:<4})"
+            else:
+                row += f"  {'N/A':>5}({cnt:<4})"
         print(row)
 
+    # 2. 가중평균 출력
     weighted_with_others: dict[int, float] = {}
     weighted_without_others: dict[int, float] = {}
 
@@ -464,9 +492,9 @@ if __name__ == "__main__":
             )
             weighted_without_others[gen] = weighted_sum_exc / total_count_exc
 
-    print(f"\n{'=' * 85}")
+    print(f"\n{'=' * 115}")
     print("=== Aggregated Weighted Average FID Summary ===")
-    print(f"{'=' * 85}")
+    print(f"{'=' * 115}")
 
     row_inc = f"{'With Others':<22}"
     row_exc = f"{'Without Others':<22}"
@@ -474,8 +502,8 @@ if __name__ == "__main__":
     for gen in range(1, generations):
         v_inc = weighted_with_others.get(gen)
         v_exc = weighted_without_others.get(gen)
-        row_inc += f"  {v_inc:>7.2f}" if v_inc is not None else f"  {'N/A':>7}"
-        row_exc += f"  {v_exc:>7.2f}" if v_exc is not None else f"  {'N/A':>7}"
+        row_inc += f"  {v_inc:>12.2f}" if v_inc is not None else f"  {'N/A':>12}"
+        row_exc += f"  {v_exc:>12.2f}" if v_exc is not None else f"  {'N/A':>12}"
 
     print(header)
     print("-" * len(header))
