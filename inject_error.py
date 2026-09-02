@@ -10,6 +10,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def swap_txt_contents(file1_path, file2_path):
+    with open(file1_path, "r", encoding="utf-8") as f1:
+        content1 = f1.read().strip()
+    with open(file2_path, "r", encoding="utf-8") as f2:
+        content2 = f2.read().strip()
+
+    with open(file1_path, "w", encoding="utf-8") as f1:
+        f1.write(content2)
+    with open(file2_path, "w", encoding="utf-8") as f2:
+        f1.write(content1)
+
+
 def inject_label_noise(source_dir, target_root, error_rate_percent):
     folder_name = os.path.basename(os.path.normpath(source_dir))
     corrupted_dir = os.path.join(
@@ -27,7 +39,6 @@ def inject_label_noise(source_dir, target_root, error_rate_percent):
     )
     shutil.copytree(source_dir, corrupted_dir)
 
-    # 하위 카테고리 디렉터리 포함 전체 .txt 파일 탐색
     txt_files = sorted(
         glob.glob(os.path.join(corrupted_dir, "**", "*.txt"), recursive=True)
     )
@@ -58,7 +69,6 @@ def inject_label_noise(source_dir, target_root, error_rate_percent):
         )
         return corrupted_dir
 
-    # random.sample: 중복 없는 비복원 추출이므로 한 번 뽑힌 인덱스는 절대 다시 안 뽑힘
     chosen_indices = random.sample(range(total_files), actual_corrupted_count)
 
     for i in range(0, len(chosen_indices), 2):
@@ -68,15 +78,8 @@ def inject_label_noise(source_dir, target_root, error_rate_percent):
         file1_path = txt_files[idx1]
         file2_path = txt_files[idx2]
 
-        with open(file1_path, "r", encoding="utf-8") as f1:
-            content1 = f1.read()
-        with open(file2_path, "r", encoding="utf-8") as f2:
-            content2 = f2.read()
-
-        with open(file1_path, "w", encoding="utf-8") as f1:
-            f1.write(content2)
-        with open(file2_path, "w", encoding="utf-8") as f2:
-            f2.write(content1)
+        # 안전한 캡션 스왑 처리
+        swap_txt_contents(file1_path, file2_path)
 
         rel_p1 = os.path.relpath(file1_path, corrupted_dir)
         rel_p2 = os.path.relpath(file2_path, corrupted_dir)
