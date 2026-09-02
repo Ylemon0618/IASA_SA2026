@@ -7,6 +7,17 @@ from glob import glob
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
+import scipy.linalg
+
+_orig_sqrtm = scipy.linalg.sqrtm
+
+
+def _patched_sqrtm(A, blocksize=64, disp=True):
+    return _orig_sqrtm(A, blocksize=blocksize)
+
+
+scipy.linalg.sqrtm = _patched_sqrtm
+
 import pytorch_fid.fid_score as fid_core
 import torch
 from colorama import Fore, Style
@@ -17,40 +28,231 @@ from pytorch_fid.fid_score import calculate_fid_given_paths
 load_dotenv()
 
 CATEGORIES = {
-    "Airplanes": ["airplane", "aircraft", "hangar", "runway", "airfield", "tarmac", "baggage carts", "fueling truck",
-                  "runway lights", "clouds", "sky", "flight", "plane", "jet", "aviation", "propeller", "cockpit",
-                  "wing", "landing gear", "airstrip"],
-    "Cars": ["car", "minivan", "race car", "sports car", "driveway", "parking garage", "avenue", "skyscrapers",
-             "traffic light", "pedestrians", "sedan", "automobile", "coupe", "suv", "headlight", "windshield", "bumper",
-             "trunk", "parking lot", "vehicle"],
-    "Cats": ["cat", "kitten", "feline", "tabby", "scratching post", "cat toy", "feathered", "kibble", "food bowl",
-             "laundry", "windowsill", "whiskers", "purr", "meow", "paws", "litter box", "ginger cat", "catnip", "furry",
-             "claw"],
-    "Dogs": ["dog", "puppy", "canine", "doghouse", "leash", "tennis ball", "water bowl", "porch", "autumn forest",
-             "barking", "tail", "snout", "golden retriever", "bulldog", "poodle", "hound", "terrier", "fetch", "fur",
-             "doggy"],
-    "Motorcycles": ["motorcycle", "motorbike", "riding gloves", "helmet", "biker", "alleyway", "city intersection",
-                    "racing track", "finish line", "toolbox", "handlebars", "exhaust", "chopper", "scooter", "moped",
-                    "kickstand", "visor", "cruiser", "engine bay", "two-wheeler"],
-    "Trains": ["train", "subway platform", "railway station", "canyon bridge", "forest track", "coastal rail",
-               "signal tower", "overhead power cables", "schedule board", "cargo platform", "passengers", "locomotive",
-               "railroad", "boxcar", "track", "caboose", "commuter", "express train", "rail", "depot"],
-    "Boats": ["boat", "ship", "marina dock", "ocean harbor", "tropical river", "mountain lake", "morning bay",
-              "swimming pool deck", "fishing rods", "life jackets", "seagulls", "wooden dock", "vessel", "deck",
-              "stern", "canoe", "sailboat", "yacht", "kayak", "oar"],
-    "Bicycles": ["bicycle", "bike", "bike rack", "beach boardwalk", "cobblestone street", "park pathway",
-                 "mountain trail", "water bottle mounted", "canvas backpack", "streetlamps", "cyclist", "pedal",
-                 "frame", "chain", "cycling", "spokes", "saddle", "wheel", "kickstand bike", "handlebar basket"],
-    "Living Rooms": ["sofa", "couch", "flatscreen tv", "coffee table", "bookshelf", "floor lamp", "rustic cabin",
-                     "apartment corner", "open-plan house", "studio", "home theater", "interior", "living room",
-                     "cushion", "armchair", "fireplace", "rug", "curtains", "living space", "lounge"],
-    "Computers": ["computer", "pc", "monitor", "workstation", "gaming setup", "office desk", "co-working space",
-                  "study table", "mechanical keyboard", "rgb lights", "wireless mouse", "headphones", "mug of coffee",
-                  "notebooks and pens", "desktop", "laptop", "screen", "mousepad", "processor", "cpu"],
+    "Airplanes": [
+        "airplane",
+        "aircraft",
+        "hangar",
+        "runway",
+        "airfield",
+        "tarmac",
+        "baggage carts",
+        "fueling truck",
+        "runway lights",
+        "clouds",
+        "sky",
+        "flight",
+        "plane",
+        "jet",
+        "aviation",
+        "propeller",
+        "cockpit",
+        "wing",
+        "landing gear",
+        "airstrip",
+    ],
+    "Cars": [
+        "car",
+        "minivan",
+        "race car",
+        "sports car",
+        "driveway",
+        "parking garage",
+        "avenue",
+        "skyscrapers",
+        "traffic light",
+        "pedestrians",
+        "sedan",
+        "automobile",
+        "coupe",
+        "suv",
+        "headlight",
+        "windshield",
+        "bumper",
+        "trunk",
+        "parking lot",
+        "vehicle",
+    ],
+    "Cats": [
+        "cat",
+        "kitten",
+        "feline",
+        "tabby",
+        "scratching post",
+        "cat toy",
+        "feathered",
+        "kibble",
+        "food bowl",
+        "laundry",
+        "windowsill",
+        "whiskers",
+        "purr",
+        "meow",
+        "paws",
+        "litter box",
+        "ginger cat",
+        "catnip",
+        "furry",
+        "claw",
+    ],
+    "Dogs": [
+        "dog",
+        "puppy",
+        "canine",
+        "doghouse",
+        "leash",
+        "tennis ball",
+        "water bowl",
+        "porch",
+        "autumn forest",
+        "barking",
+        "tail",
+        "snout",
+        "golden retriever",
+        "bulldog",
+        "poodle",
+        "hound",
+        "terrier",
+        "fetch",
+        "fur",
+        "doggy",
+    ],
+    "Motorcycles": [
+        "motorcycle",
+        "motorbike",
+        "riding gloves",
+        "helmet",
+        "biker",
+        "alleyway",
+        "city intersection",
+        "racing track",
+        "finish line",
+        "toolbox",
+        "handlebars",
+        "exhaust",
+        "chopper",
+        "scooter",
+        "moped",
+        "kickstand",
+        "visor",
+        "cruiser",
+        "engine bay",
+        "two-wheeler",
+    ],
+    "Trains": [
+        "train",
+        "subway platform",
+        "railway station",
+        "canyon bridge",
+        "forest track",
+        "coastal rail",
+        "signal tower",
+        "overhead power cables",
+        "schedule board",
+        "cargo platform",
+        "passengers",
+        "locomotive",
+        "railroad",
+        "boxcar",
+        "track",
+        "caboose",
+        "commuter",
+        "express train",
+        "rail",
+        "depot",
+    ],
+    "Boats": [
+        "boat",
+        "ship",
+        "marina dock",
+        "ocean harbor",
+        "tropical river",
+        "mountain lake",
+        "morning bay",
+        "swimming pool deck",
+        "fishing rods",
+        "life jackets",
+        "seagulls",
+        "wooden dock",
+        "vessel",
+        "deck",
+        "stern",
+        "canoe",
+        "sailboat",
+        "yacht",
+        "kayak",
+        "oar",
+    ],
+    "Bicycles": [
+        "bicycle",
+        "bike",
+        "bike rack",
+        "beach boardwalk",
+        "cobblestone street",
+        "park pathway",
+        "mountain trail",
+        "water bottle mounted",
+        "canvas backpack",
+        "streetlamps",
+        "cyclist",
+        "pedal",
+        "frame",
+        "chain",
+        "cycling",
+        "spokes",
+        "saddle",
+        "wheel",
+        "kickstand bike",
+        "handlebar basket",
+    ],
+    "Living Rooms": [
+        "sofa",
+        "couch",
+        "flatscreen tv",
+        "coffee table",
+        "bookshelf",
+        "floor lamp",
+        "rustic cabin",
+        "apartment corner",
+        "open-plan house",
+        "studio",
+        "home theater",
+        "interior",
+        "living room",
+        "cushion",
+        "armchair",
+        "fireplace",
+        "rug",
+        "curtains",
+        "living space",
+        "lounge",
+    ],
+    "Computers": [
+        "computer",
+        "pc",
+        "monitor",
+        "workstation",
+        "gaming setup",
+        "office desk",
+        "co-working space",
+        "study table",
+        "mechanical keyboard",
+        "rgb lights",
+        "wireless mouse",
+        "headphones",
+        "mug of coffee",
+        "notebooks and pens",
+        "desktop",
+        "laptop",
+        "screen",
+        "mousepad",
+        "processor",
+        "cpu",
+    ],
 }
 
 
 class SafeFIDImageDataset(torch.utils.data.Dataset):
+
     def __init__(self, files, transforms=None):
         self.files = files
         self.transforms = transforms
@@ -83,38 +285,37 @@ def classify_image(caption: str) -> str:
 
 
 def load_category_files(gen_dir: str) -> dict[str, list[str]]:
+    images_dir = (
+        os.path.join(gen_dir, "images")
+        if os.path.exists(os.path.join(gen_dir, "images"))
+        else gen_dir
+    )
+    metadata_path = os.path.join(images_dir, "metadata.jsonl")
+
     all_categories = list(CATEGORIES.keys()) + ["Others"]
     category_files: dict[str, list[str]] = {cat: [] for cat in all_categories}
-
-    if not os.path.exists(gen_dir):
-        return category_files
-
-    images_dir = os.path.join(gen_dir, "images") if os.path.exists(os.path.join(gen_dir, "images")) else gen_dir
-    metadata_path = os.path.join(images_dir, "metadata.jsonl")
 
     if os.path.exists(metadata_path):
         with open(metadata_path, "r", encoding="utf-8") as f:
             for line in f:
                 if not line.strip():
                     continue
-                try:
-                    data = json.loads(line.strip())
-                    img_path = os.path.join(images_dir, data.get("file_name", ""))
-                    if not os.path.exists(img_path):
-                        continue
-                    category = classify_image(data.get("text", ""))
-                    category_files[category].append(img_path)
-                except json.JSONDecodeError:
+                data = json.loads(line.strip())
+                img_path = os.path.join(images_dir, data["file_name"])
+                if not os.path.exists(img_path):
                     continue
+                category = classify_image(data.get("text", ""))
+                category_files[category].append(img_path)
         return category_files
 
-    img_paths = glob(os.path.join(images_dir, "*.png")) + glob(os.path.join(images_dir, "*.jpg")) + glob(
-        os.path.join(images_dir, "*.jpeg"))
+    img_paths = glob(os.path.join(images_dir, "*.png")) + glob(
+        os.path.join(images_dir, "*.jpg")
+    )
     for img_p in img_paths:
         txt_p = os.path.splitext(img_p)[0] + ".txt"
         caption = ""
         if os.path.exists(txt_p):
-            with open(txt_p, "r", encoding="utf-8", errors="ignore") as f:
+            with open(txt_p, "r", encoding="utf-8") as f:
                 caption = f.read().strip()
         category = classify_image(caption)
         category_files[category].append(img_p)
@@ -171,16 +372,17 @@ if __name__ == "__main__":
     all_categories = list(CATEGORIES.keys()) + ["Others"]
 
     gen0_dir = os.path.join(data_root, "gen_0")
-    if not os.path.exists(gen0_dir) or len(glob(os.path.join(gen0_dir, "**/*.png"), recursive=True)) == 0:
-        for fallback in ["./dataset", "./uiuc_pascal_dataset"]:
-            if os.path.exists(fallback):
-                gen0_dir = fallback
-                break
+    if not os.path.exists(gen0_dir) and os.path.exists("./dataset"):
+        gen0_dir = "./dataset"
 
-    print(f"{Fore.YELLOW}[SYSTEM] Loading Gen 0 baseline from '{gen0_dir}'...{Style.RESET_ALL}")
     gen0_files = load_category_files(gen0_dir)
+    print(
+        f"{Fore.YELLOW}[SYSTEM] Loading Gen 0 baseline from '{gen0_dir}'...{Style.RESET_ALL}"
+    )
     for cat, files in gen0_files.items():
-        print(f"{Fore.WHITE}[gen_0] {cat}: {len(files)} images{Style.RESET_ALL}")
+        print(
+            f"{Fore.WHITE}[gen_0] {cat}: {len(files)} images{Style.RESET_ALL}"
+        )
 
     results: dict[str, dict[int, float]] = {cat: {} for cat in all_categories}
     gen_file_counts: dict[int, dict[str, int]] = {}
