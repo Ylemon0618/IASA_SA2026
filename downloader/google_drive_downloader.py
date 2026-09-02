@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 
@@ -30,31 +31,18 @@ def download_from_google_drive(drive_url, output_filename):
     print(f"[*] File ID       : {file_id}")
     print(f"[*] Saving to     : {output_filename}")
 
-    download_url = "https://docs.google.com/uc?export=download"
+    # 최신 Direct Download URL
+    download_url = f"https://drive.usercontent.google.com/download?id={file_id}&confirm=t"
 
     session = requests.Session()
-    session.headers.update(
-        {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            )
-        }
-    )
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
 
     try:
         print("[*] Starting download...")
-        response = session.get(
-            download_url, params={"id": file_id}, stream=True
-        )
-
-        # 대용량 파일 경고(Confirm Token) 확인
-        for key, value in response.cookies.items():
-            if key.startswith("download_warning"):
-                params = {"id": file_id, "confirm": value}
-                response = session.get(
-                    download_url, params=params, stream=True
-                )
-                break
+        response = session.get(download_url, stream=True)
+        response.raise_for_status()
 
         total_size = int(response.headers.get("content-length", 0))
         read_so_far = 0
@@ -77,13 +65,14 @@ def download_from_google_drive(drive_url, output_filename):
                         )
                     sys.stdout.flush()
 
-        print("\n[+] Download completed successfully!")
+        if os.path.getsize(output_filename) < 1000:  # 다운로드된 파일이 너무 작으면 (HTML 오류 페이지일 가능성)
+            print(
+                "\n[-] Warning: Downloaded file size is unusually small. Check if permissions are set to 'Anyone with the link'.")
+        else:
+            print("\n[+] Download completed successfully!")
 
     except Exception as e:
         print(f"\n[-] Error occurred during download: {e}")
-        print(
-            "[!] Please check if the Google Drive link is public ('Anyone with the link')."
-        )
 
 
 if __name__ == "__main__":
