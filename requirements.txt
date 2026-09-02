@@ -25,3 +25,4 @@ tensorboard
 tqdm
 colorama
 python-dotenv
+requests
