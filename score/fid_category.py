@@ -15,7 +15,11 @@ _orig_sqrtm = scipy.linalg.sqrtm
 def _patched_sqrtm(A, *args, **kwargs):
     kwargs.pop("disp", None)
     kwargs.pop("blocksize", None)
-    return _orig_sqrtm(A, *args, **kwargs)
+    res = _orig_sqrtm(A, *args, **kwargs)
+
+    if isinstance(res, tuple) or isinstance(res, list):
+        return res
+    return res, 0.0
 
 
 scipy.linalg.sqrtm = _patched_sqrtm
