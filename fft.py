@@ -1,310 +1,279 @@
-import json
-import logging
 import os
-import random
-import subprocess
-import sys
-import warnings
+import shutil
+import ssl
+import tempfile
 from glob import glob
 
-import torch
-from PIL import Image
-from colorama import Fore, Style
-from diffusers import DiffusionPipeline
-from dotenv import load_dotenv
-from tqdm import tqdm
-from transformers import BitsAndBytesConfig
-from transformers import logging as tf_logging
-from transformers import pipeline as tf_pipeline
+ssl._create_default_https_context = ssl._create_unverified_context
 
-from modules.measures import measure_time
+# --- [SciPy sqrtm 호환성 및 언패킹 패치] ---
+import scipy.linalg
+
+_orig_sqrtm = scipy.linalg.sqrtm
+
+
+def _patched_sqrtm(A, *args, **kwargs):
+    kwargs.pop("disp", None)
+    kwargs.pop("blocksize", None)
+    res = _orig_sqrtm(A, *args, **kwargs)
+
+    if isinstance(res, tuple) or isinstance(res, list):
+        return res
+    return res, 0.0
+
+
+scipy.linalg.sqrtm = _patched_sqrtm
+# ------------------------------------------
+
+import pytorch_fid.fid_score as fid_core
+import torch
+from colorama import Fore, Style
+from dotenv import load_dotenv
+from PIL import Image
+from pytorch_fid.fid_score import calculate_fid_given_paths
 
 load_dotenv()
 
-tf_logging.set_verbosity_error()
-warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
-logging.getLogger("httpx").setLevel(logging.WARNING)
-warnings.filterwarnings("ignore", category=UserWarning, module="huggingface_hub")
+MIN_SAMPLES = 10
 
-original_open = Image.open
+# 13개 표준 카테고리 목록
+STANDARD_CATEGORIES = [
+    "Airplanes",
+    "Bicycles",
+    "Birds",
+    "Boats",
+    "Cars",
+    "Cats",
+    "Computers",
+    "Dogs",
+    "Livestocks",
+    "Living Rooms",
+    "Motorcycles",
+    "People",
+    "Plants",
+    "Trains",
+]
 
 
-def patched_open(*args, **kwargs):
-    img = original_open(*args, **kwargs)
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-    if img.size != (1024, 1024):
-        img = img.resize((1024, 1024), Image.Resampling.BILINEAR)
-    return img
+class SafeFIDImageDataset(torch.utils.data.Dataset):
+
+    def __init__(self, files, transforms=None):
+        self.files = files
+        self.transforms = transforms
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, i):
+        path = self.files[i]
+        try:
+            img = Image.open(path).convert("RGB")
+            if img.size != (1024, 1024):
+                img = img.resize((1024, 1024), Image.Resampling.BILINEAR)
+        except Exception:
+            img = Image.new("RGB", (1024, 1024), (0, 0, 0))
+        if self.transforms is not None:
+            img = self.transforms(img)
+        return img
 
 
-Image.open = patched_open
+fid_core.ImageFolderDataset = SafeFIDImageDataset
 
 
-class FFTResearchPipeline:
-    def __init__(
-            self,
-            base_model_path,
-            total_gens=20,
-            prompt_pool_path="synthetic_image_prompts.json",
-            gen_0_data_dir=None,
+def load_category_files(gen_dir: str) -> dict[str, list[str]]:
+    images_dir = (
+        os.path.join(gen_dir, "images")
+        if os.path.exists(os.path.join(gen_dir, "images"))
+        else gen_dir
+    )
+
+    all_categories = STANDARD_CATEGORIES + ["Others"]
+    category_files: dict[str, list[str]] = {cat: [] for cat in all_categories}
+
+    sub_dirs = [
+        d for d in os.listdir(images_dir)
+        if os.path.isdir(os.path.join(images_dir, d))
+    ]
+
+    if sub_dirs:
+        for cat_dir in sub_dirs:
+            category = cat_dir if cat_dir in STANDARD_CATEGORIES else "Others"
+            cat_path = os.path.join(images_dir, cat_dir)
+
+            img_paths = (
+                    glob(os.path.join(cat_path, "*.png"))
+                    + glob(os.path.join(cat_path, "*.jpg"))
+                    + glob(os.path.join(cat_path, "*.jpeg"))
+            )
+            category_files[category].extend(img_paths)
+    else:
+        img_paths = (
+                glob(os.path.join(images_dir, "*.png"))
+                + glob(os.path.join(images_dir, "*.jpg"))
+                + glob(os.path.join(images_dir, "*.jpeg"))
+        )
+        category_files["Others"].extend(img_paths)
+
+    return category_files
+
+
+def evaluate_category_fid(
+        real_files: list[str],
+        fake_files: list[str],
+        category: str,
+        gen: int,
+        device: str = "cuda",
+) -> float | None:
+    if len(real_files) < MIN_SAMPLES or len(fake_files) < MIN_SAMPLES:
+        print(
+            f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
+            f"[{category}]{Fore.RED}: Skipped < {MIN_SAMPLES} images "
+            f"(real={len(real_files)}, fake={len(fake_files)}){Style.RESET_ALL}"
+        )
+        return None
+
+    with (
+        tempfile.TemporaryDirectory() as tmp_real,
+        tempfile.TemporaryDirectory() as tmp_fake,
     ):
-        self.current_model = base_model_path
-        self.total_gens = total_gens
-        self.gen_0_data_dir = gen_0_data_dir
+        for p in real_files:
+            shutil.copy(p, os.path.join(tmp_real, os.path.basename(p)))
+        for p in fake_files:
+            shutil.copy(p, os.path.join(tmp_fake, os.path.basename(p)))
 
-        self.output_root = os.environ.get("DATASET_PATH", "./fft_data")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-        if os.path.exists(prompt_pool_path):
-            with open(prompt_pool_path, "r", encoding="utf-8") as f:
-                self.category_prompts = json.load(f)
-
-            self.flat_prompt_pool = []
-            for cat, p_list in self.category_prompts.items():
-                for p in p_list:
-                    self.flat_prompt_pool.append((cat, p))
-
+        try:
+            fid_value = calculate_fid_given_paths(
+                [tmp_real, tmp_fake], batch_size=32, device=device, dims=2048
+            )
             print(
-                f"{Fore.GREEN}[SYSTEM] Successfully loaded {len(self.flat_prompt_pool)} synthetic prompts across {len(self.category_prompts)} categories from '{prompt_pool_path}'.{Style.RESET_ALL}"
+                f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
+                f"[{category}] (R:{len(real_files)}, F:{len(fake_files)}): {Fore.GREEN}{fid_value:.4f}{Style.RESET_ALL}"
             )
-        else:
+            return fid_value
+        except Exception as e:
             print(
-                f"{Fore.RED}[SYSTEM] Critical Error: '{prompt_pool_path}' not found! Please run the prompt generation first.{Style.RESET_ALL}"
+                f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
+                f"[{category}]{Fore.RED}: Error ({e}){Style.RESET_ALL}"
             )
-            sys.exit(1)
-
-        os.makedirs(self.output_root, exist_ok=True)
-
-    @measure_time
-    def generate_images(self, gen_num, count=100):
-        base_dir = f"{self.output_root}/gen_{gen_num}/images"
-
-        existing_images = glob(f"{base_dir}/**/*.png", recursive=True)
-        if os.path.exists(base_dir) and len(existing_images) >= count:
-            print(
-                f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All images already generated. Skipping generation.{Fore.RESET}"
-            )
-            return
-
-        print(
-            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting SDXL Image Synthesis{Style.RESET_ALL}"
-        )
-        os.makedirs(base_dir, exist_ok=True)
-
-        is_hub_model = not os.path.isdir(self.current_model)
-        pipe = DiffusionPipeline.from_pretrained(
-            self.current_model,
-            torch_dtype=torch.float16,
-            variant="fp16" if is_hub_model else None,
-        ).to(self.device)
-
-        sampling_pool = []
-        while len(sampling_pool) < count:
-            shuffled_pool = list(self.flat_prompt_pool)
-            random.shuffle(shuffled_pool)
-            sampling_pool.extend(shuffled_pool)
-
-        final_prompts = sampling_pool[:count]
-
-        for i, (cat, prompt) in enumerate(
-                tqdm(final_prompts, desc=f"Gen {gen_num} Image Progress")
-        ):
-            cat_dir = os.path.join(base_dir, cat)
-            os.makedirs(cat_dir, exist_ok=True)
-
-            image = pipe(prompt).images[0]
-            image.save(os.path.join(cat_dir, f"img_{i:05d}.png"))
-
-        del pipe
-        torch.cuda.empty_cache()
-
-        print(
-            f"{Fore.YELLOW}{'[SDXL]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: SDXL Image Synthesis Finished{Style.RESET_ALL}",
-            end="\n",
-        )
-
-    @measure_time
-    def caption_images(self, gen_num):
-        save_dir = f"{self.output_root}/gen_{gen_num}/images"
-        img_paths = glob(f"{save_dir}/**/*.png", recursive=True)
-        metadata = []
-
-        metadata_path = os.path.join(save_dir, "metadata.jsonl")
-        total_images = len(img_paths)
-
-        if os.path.exists(metadata_path):
-            with open(metadata_path, "r", encoding="utf-8") as f:
-                existing_captions = f.readlines()
-            if len(existing_captions) >= total_images and total_images > 0:
-                print(
-                    f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All captions already exist. Skipping captioning.{Fore.RESET}"
-                )
-                return
-
-        print(
-            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting Llava Captioning{Style.RESET_ALL}"
-        )
-
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_quant_type="nf4",
-        )
-
-        captioner = tf_pipeline(
-            "image-text-to-text",
-            model="llava-hf/llava-1.5-7b-hf",
-            model_kwargs={"quantization_config": bnb_config},
-        )
-
-        for img_p in tqdm(img_paths, desc="Captioning Progress"):
-            raw_image = Image.open(img_p).convert("RGB")
-            prompt = (
-                "USER: <image>\nDescribe this image in detail.\nASSISTANT:"
-            )
-
-            outputs = captioner(
-                images=raw_image,
-                text=prompt,
-                generate_kwargs={
-                    "max_new_tokens": 100,
-                    "max_length": None,
-                    "do_sample": False,
-                },
-            )
-
-            caption = (
-                outputs[0]["generated_text"].split("ASSISTANT:")[-1].strip()
-            )
-
-            rel_file_path = os.path.relpath(img_p, save_dir)
-            metadata.append({"file_name": rel_file_path, "text": caption})
-
-            txt_path = img_p.rsplit(".", 1)[0] + ".txt"
-            with open(txt_path, "w", encoding="utf-8") as f_txt:
-                f_txt.write(caption)
-
-        with open(metadata_path, "w", encoding="utf-8") as f:
-            for entry in metadata:
-                f.write(json.dumps(entry) + "\n")
-
-        del captioner
-        torch.cuda.empty_cache()
-
-        print(
-            f"{Fore.YELLOW}{'[Llava]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Llava Captioning Finished{Style.RESET_ALL}",
-            end="\n",
-        )
-
-    @measure_time
-    def train_next_gen(self, gen_num, custom_train_dir=None):
-        next_gen = gen_num + 1
-        output_dir = f"./models/gen_{next_gen}"
-
-        if os.path.exists(os.path.join(output_dir, "model_index.json")):
-            print(
-                f"{Fore.YELLOW}{'[FFT]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Model already exists. Skipping training.{Fore.RESET}"
-            )
-            self.current_model = output_dir
-            return
-
-        print(
-            f"{Fore.YELLOW}{'[FFT]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting Full Fine-tuning{Style.RESET_ALL}"
-        )
-
-        train_data_path = (
-            custom_train_dir
-            if custom_train_dir
-            else f"{self.output_root}/gen_{gen_num}/images"
-        )
-
-        subprocess.run(
-            [
-                "bash",
-                "fft_pilot.sh",
-                f"--pretrained_model_name_or_path={self.current_model}",
-                f"--train_data_dir={train_data_path}",
-                f"--output_dir={output_dir}",
-            ],
-            check=True,
-        )
-
-        self.current_model = output_dir
-
-        print(
-            f"{Fore.YELLOW}{'[FFT]':<9}{Fore.GREEN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Full Fine-tuning Finished{Style.RESET_ALL}",
-            end="\n",
-        )
-
-    def auto_detect_start(self):
-        completed = []
-        for path in glob("./models/gen_*/model_index.json"):
-            try:
-                gen_n = int(path.split("gen_")[1].split("/")[0])
-                completed.append(gen_n)
-            except (IndexError, ValueError):
-                continue
-
-        if not completed:
-            return 0, self.current_model
-
-        latest = max(completed)
-        model_path = f"./models/gen_{latest}"
-        print(
-            f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}Resume detected: gen_{latest} model found. "
-            f"Resuming from generation {latest}.{Fore.RESET}"
-        )
-        return latest, model_path
-
-    def run(self, count):
-        print(f"{Fore.GREEN}=== FFT Pipeline Running ==={Style.RESET_ALL}")
-
-        env_start = os.environ.get("START_GEN")
-        if env_start is not None:
-            start_gen = int(env_start)
-            if start_gen > 0:
-                self.current_model = f"./models/gen_{start_gen}"
-                print(
-                    f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}START_GEN={start_gen} set. "
-                    f"Using model: {self.current_model}{Fore.RESET}"
-                )
-        else:
-            start_gen, self.current_model = self.auto_detect_start()
-
-        for gen in range(start_gen, self.total_gens):
-            if gen == 0:
-                if (
-                        not self.gen_0_data_dir
-                        or not os.path.exists(self.gen_0_data_dir)
-                ):
-                    print(
-                        f"{Fore.RED}{'[SYSTEM]':<9}Generation {Fore.MAGENTA}{gen}{Fore.RED}: Valid Gen 0 dataset path not provided or does not exist ({self.gen_0_data_dir}).{Fore.RESET}"
-                    )
-                    sys.exit(1)
-
-                print(
-                    f"{Fore.YELLOW}{'[SYSTEM]':<9}{Fore.GREEN}Using custom external dataset for Gen 0 training: '{self.gen_0_data_dir}'.{Fore.RESET}"
-                )
-                self.train_next_gen(gen, custom_train_dir=self.gen_0_data_dir)
-            else:
-                self.generate_images(gen, count=count)
-                self.caption_images(gen)
-                self.train_next_gen(gen)
+            return None
 
 
 if __name__ == "__main__":
-    model_path = os.environ.get(
-        "MODEL_PATH", "stabilityai/stable-diffusion-xl-base-1.0"
-    )
     generations = int(os.environ.get("GENERATIONS", 20))
+    data_root = "./fft_data"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    gen_0_dataset = input("[INPUT] Enter the dataset path for Generation 0: ").strip()
+    all_categories = STANDARD_CATEGORIES + ["Others"]
 
-    pipeline = FFTResearchPipeline(
-        base_model_path=model_path,
-        total_gens=generations,
-        prompt_pool_path="synthetic_image_prompts.json",
-        gen_0_data_dir=gen_0_dataset,
+    gen0_dir = os.path.join(data_root, "gen_0")
+    if not os.path.exists(gen0_dir) and os.path.exists("./dataset"):
+        gen0_dir = "./dataset"
+
+    gen0_files = load_category_files(gen0_dir)
+    print(
+        f"{Fore.YELLOW}[SYSTEM] Loading Gen 0 baseline from '{gen0_dir}'...{Style.RESET_ALL}"
     )
-    pipeline.run(3000)
+    for cat, files in gen0_files.items():
+        print(
+            f"{Fore.WHITE}[gen_0] {cat}: {len(files)} images{Style.RESET_ALL}"
+        )
+
+    results: dict[str, dict[int, float]] = {cat: {} for cat in all_categories}
+    gen_file_counts: dict[int, dict[str, int]] = {}
+
+    for gen in range(1, generations):
+        gen_dir = os.path.join(data_root, f"gen_{gen}")
+        if not os.path.exists(gen_dir):
+            continue
+
+        print(
+            f"\n{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Category FID Start{Style.RESET_ALL}"
+        )
+        gen_files = load_category_files(gen_dir)
+        gen_file_counts[gen] = {
+            cat: len(files) for cat, files in gen_files.items()
+        }
+
+        for category in all_categories:
+            score = evaluate_category_fid(
+                real_files=gen0_files[category],
+                fake_files=gen_files[category],
+                category=category,
+                gen=gen,
+                device=device,
+            )
+            if score is not None:
+                results[category][gen] = score
+
+    print(f"\n{'=' * 115}")
+    print(
+        f"=== Category FID Evaluation Summary (vs gen_0) [Format: FID (fake_count)] ==="
+    )
+    print(f"{'=' * 115}")
+
+    header = f"{'Category':<22}" + "".join(
+        f"  Gen{g:<9}" for g in range(1, generations)
+    )
+    print(header)
+    print("-" * len(header))
+
+    for cat, gen_scores in results.items():
+        row = f"{cat:<22}"
+        for gen in range(1, generations):
+            val = gen_scores.get(gen)
+            cnt = gen_file_counts.get(gen, {}).get(cat, 0)
+            if val is not None:
+                row += f"  {val:>5.1f}({cnt:<4})"
+            else:
+                row += f"  {'N/A':>5}({cnt:<4})"
+        print(row)
+
+    weighted_with_others: dict[int, float] = {}
+    weighted_without_others: dict[int, float] = {}
+
+    for gen in range(1, generations):
+        counts = gen_file_counts.get(gen, {})
+
+        total_count_inc = sum(
+            counts.get(cat, 0)
+            for cat in all_categories
+            if gen in results[cat]
+        )
+        if total_count_inc > 0:
+            weighted_sum_inc = sum(
+                counts.get(cat, 0) * results[cat][gen]
+                for cat in all_categories
+                if gen in results[cat]
+            )
+            weighted_with_others[gen] = weighted_sum_inc / total_count_inc
+
+        total_count_exc = sum(
+            counts.get(cat, 0)
+            for cat in STANDARD_CATEGORIES
+            if gen in results[cat]
+        )
+        if total_count_exc > 0:
+            weighted_sum_exc = sum(
+                counts.get(cat, 0) * results[cat][gen]
+                for cat in STANDARD_CATEGORIES
+                if gen in results[cat]
+            )
+            weighted_without_others[gen] = weighted_sum_exc / total_count_exc
+
+    print(f"\n{'=' * 115}")
+    print("=== Aggregated Weighted Average FID Summary ===")
+    print(f"{'=' * 115}")
+
+    row_inc = f"{'With Others':<22}"
+    row_exc = f"{'Without Others':<22}"
+
+    for gen in range(1, generations):
+        v_inc = weighted_with_others.get(gen)
+        v_exc = weighted_without_others.get(gen)
+        row_inc += f"  {v_inc:>12.2f}" if v_inc is not None else f"  {'N/A':>12}"
+        row_exc += f"  {v_exc:>12.2f}" if v_exc is not None else f"  {'N/A':>12}"
+
+    print(header)
+    print("-" * len(header))
+    print(f"{Fore.YELLOW}{row_inc}{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}{row_exc}{Style.RESET_ALL}")

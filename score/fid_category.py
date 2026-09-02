@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import ssl
@@ -37,238 +36,22 @@ load_dotenv()
 
 MIN_SAMPLES = 10
 
-CATEGORIES = {
-    "Airplanes": [
-        "airplane",
-        "aircraft",
-        "hangar",
-        "runway",
-        "airfield",
-        "tarmac",
-        "baggage carts",
-        "fueling truck",
-        "runway lights",
-        "clouds",
-        "sky",
-        "flight",
-        "plane",
-        "jet",
-        "aviation",
-        "propeller",
-        "cockpit",
-        "wing",
-        "landing gear",
-        "airstrip",
-    ],
-    "Cars": [
-        "car",
-        "minivan",
-        "race car",
-        "sports car",
-        "driveway",
-        "parking garage",
-        "avenue",
-        "skyscrapers",
-        "traffic light",
-        "pedestrians",
-        "sedan",
-        "automobile",
-        "coupe",
-        "suv",
-        "headlight",
-        "windshield",
-        "bumper",
-        "trunk",
-        "parking lot",
-        "vehicle",
-    ],
-    "Cats": [
-        "cat",
-        "kitten",
-        "feline",
-        "tabby",
-        "scratching post",
-        "cat toy",
-        "feathered",
-        "kibble",
-        "food bowl",
-        "laundry",
-        "windowsill",
-        "whiskers",
-        "purr",
-        "meow",
-        "paws",
-        "litter box",
-        "ginger cat",
-        "catnip",
-        "furry",
-        "claw",
-    ],
-    "Dogs": [
-        "dog",
-        "puppy",
-        "canine",
-        "doghouse",
-        "leash",
-        "tennis ball",
-        "water bowl",
-        "porch",
-        "autumn forest",
-        "barking",
-        "tail",
-        "snout",
-        "golden retriever",
-        "bulldog",
-        "poodle",
-        "hound",
-        "terrier",
-        "fetch",
-        "fur",
-        "doggy",
-    ],
-    "Motorcycles": [
-        "motorcycle",
-        "motorbike",
-        "riding gloves",
-        "helmet",
-        "biker",
-        "alleyway",
-        "city intersection",
-        "racing track",
-        "finish line",
-        "toolbox",
-        "handlebars",
-        "exhaust",
-        "chopper",
-        "scooter",
-        "moped",
-        "kickstand",
-        "visor",
-        "cruiser",
-        "engine bay",
-        "two-wheeler",
-    ],
-    "Trains": [
-        "train",
-        "subway platform",
-        "railway station",
-        "canyon bridge",
-        "forest track",
-        "coastal rail",
-        "signal tower",
-        "overhead power cables",
-        "schedule board",
-        "cargo platform",
-        "passengers",
-        "locomotive",
-        "railroad",
-        "boxcar",
-        "track",
-        "caboose",
-        "commuter",
-        "express train",
-        "rail",
-        "depot",
-    ],
-    "Boats": [
-        "boat",
-        "ship",
-        "marina dock",
-        "ocean harbor",
-        "tropical river",
-        "mountain lake",
-        "morning bay",
-        "swimming pool deck",
-        "fishing rods",
-        "life jackets",
-        "seagulls",
-        "wooden dock",
-        "vessel",
-        "deck",
-        "stern",
-        "canoe",
-        "sailboat",
-        "yacht",
-        "kayak",
-        "oar",
-    ],
-    "Bicycles": [
-        "bicycle",
-        "bike",
-        "bike rack",
-        "beach boardwalk",
-        "cobblestone street",
-        "park pathway",
-        "mountain trail",
-        "water bottle mounted",
-        "canvas backpack",
-        "streetlamps",
-        "cyclist",
-        "pedal",
-        "frame",
-        "chain",
-        "cycling",
-        "spokes",
-        "saddle",
-        "wheel",
-        "kickstand bike",
-        "handlebar basket",
-    ],
-    "Living Rooms": [
-        "sofa",
-        "couch",
-        "flatscreen tv",
-        "coffee table",
-        "bookshelf",
-        "floor lamp",
-        "rustic cabin",
-        "apartment corner",
-        "open-plan house",
-        "home theater",
-        "interior",
-        "living room",
-        "cushion",
-        "armchair",
-        "fireplace",
-        "rug",
-        "curtains",
-        "living space",
-        "lounge",
-    ],
-    "Computers": [
-        "computer",
-        "pc",
-        "monitor",
-        "workstation",
-        "gaming setup",
-        "office desk",
-        "co-working space",
-        "study table",
-        "mechanical keyboard",
-        "rgb lights",
-        "wireless mouse",
-        "headphones",
-        "mug of coffee",
-        "notebooks and pens",
-        "desktop",
-        "laptop",
-        "screen",
-        "mousepad",
-        "processor",
-        "cpu",
-        "display",
-        "keyboard",
-        "mouse",
-        "desk",
-        "workspace",
-        "computer desk",
-        "monitor screen",
-        "dual monitors",
-        "pc tower",
-        "computer tower",
-        "macbook",
-    ],
-}
+STANDARD_CATEGORIES = [
+    "Airplanes",
+    "Bicycles",
+    "Birds",
+    "Boats",
+    "Cars",
+    "Cats",
+    "Computers",
+    "Dogs",
+    "Livestock",
+    "Living Rooms",
+    "Motorcycles",
+    "People",
+    "Plants",
+    "Trains",
+]
 
 
 class SafeFIDImageDataset(torch.utils.data.Dataset):
@@ -296,71 +79,39 @@ class SafeFIDImageDataset(torch.utils.data.Dataset):
 fid_core.ImageFolderDataset = SafeFIDImageDataset
 
 
-def classify_image(caption: str) -> str:
-    caption_lower = caption.lower()
-
-    # [최우선 컴퓨터 분류 규칙] - VLM 캡션 내 관련 핵심 단어가 하나라도 포함되면 Computers 카테고리로 지정
-    computer_priority_keywords = [
-        "computer",
-        "laptop",
-        "pc",
-        "monitor",
-        "keyboard",
-        "desktop",
-        "macbook",
-        "workstation",
-        "screen",
-        "mouse",
-        "cpu",
-    ]
-    if any(kw in caption_lower for kw in computer_priority_keywords):
-        return "Computers"
-
-    # 기타 정규 카테고리 순회
-    for category, keywords in CATEGORIES.items():
-        if category == "Computers":
-            continue
-        if any(kw in caption_lower for kw in keywords):
-            return category
-
-    return "Others"
-
-
 def load_category_files(gen_dir: str) -> dict[str, list[str]]:
     images_dir = (
         os.path.join(gen_dir, "images")
         if os.path.exists(os.path.join(gen_dir, "images"))
         else gen_dir
     )
-    metadata_path = os.path.join(images_dir, "metadata.jsonl")
 
-    all_categories = list(CATEGORIES.keys()) + ["Others"]
+    all_categories = STANDARD_CATEGORIES + ["Others"]
     category_files: dict[str, list[str]] = {cat: [] for cat in all_categories}
 
-    if os.path.exists(metadata_path):
-        with open(metadata_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                data = json.loads(line.strip())
-                img_path = os.path.join(images_dir, data["file_name"])
-                if not os.path.exists(img_path):
-                    continue
-                category = classify_image(data.get("text", ""))
-                category_files[category].append(img_path)
-        return category_files
+    sub_dirs = [
+        d for d in os.listdir(images_dir)
+        if os.path.isdir(os.path.join(images_dir, d))
+    ]
 
-    img_paths = glob(os.path.join(images_dir, "*.png")) + glob(
-        os.path.join(images_dir, "*.jpg")
-    )
-    for img_p in img_paths:
-        txt_p = os.path.splitext(img_p)[0] + ".txt"
-        caption = ""
-        if os.path.exists(txt_p):
-            with open(txt_p, "r", encoding="utf-8") as f:
-                caption = f.read().strip()
-        category = classify_image(caption)
-        category_files[category].append(img_p)
+    if sub_dirs:
+        for cat_dir in sub_dirs:
+            category = cat_dir if cat_dir in STANDARD_CATEGORIES else "Others"
+            cat_path = os.path.join(images_dir, cat_dir)
+
+            img_paths = (
+                    glob(os.path.join(cat_path, "*.png"))
+                    + glob(os.path.join(cat_path, "*.jpg"))
+                    + glob(os.path.join(cat_path, "*.jpeg"))
+            )
+            category_files[category].extend(img_paths)
+    else:
+        img_paths = (
+                glob(os.path.join(images_dir, "*.png"))
+                + glob(os.path.join(images_dir, "*.jpg"))
+                + glob(os.path.join(images_dir, "*.jpeg"))
+        )
+        category_files["Others"].extend(img_paths)
 
     return category_files
 
@@ -411,7 +162,7 @@ if __name__ == "__main__":
     data_root = "./fft_data"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    all_categories = list(CATEGORIES.keys()) + ["Others"]
+    all_categories = STANDARD_CATEGORIES + ["Others"]
 
     gen0_dir = os.path.join(data_root, "gen_0")
     if not os.path.exists(gen0_dir) and os.path.exists("./dataset"):
@@ -497,13 +248,13 @@ if __name__ == "__main__":
 
         total_count_exc = sum(
             counts.get(cat, 0)
-            for cat in CATEGORIES.keys()
+            for cat in STANDARD_CATEGORIES
             if gen in results[cat]
         )
         if total_count_exc > 0:
             weighted_sum_exc = sum(
                 counts.get(cat, 0) * results[cat][gen]
-                for cat in CATEGORIES.keys()
+                for cat in STANDARD_CATEGORIES
                 if gen in results[cat]
             )
             weighted_without_others[gen] = weighted_sum_exc / total_count_exc
