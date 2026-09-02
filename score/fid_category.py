@@ -35,10 +35,8 @@ from pytorch_fid.fid_score import calculate_fid_given_paths
 
 load_dotenv()
 
-# 최소 이미지 수 기준 (10장 미만 시 FID 측정 제외)
 MIN_SAMPLES = 10
 
-# 10개 카테고리별 키워드 (Computers 키워드 대폭 확장)
 CATEGORIES = {
     "Airplanes": [
         "airplane",
@@ -226,7 +224,6 @@ CATEGORIES = {
         "rustic cabin",
         "apartment corner",
         "open-plan house",
-        "studio",
         "home theater",
         "interior",
         "living room",
@@ -301,9 +298,31 @@ fid_core.ImageFolderDataset = SafeFIDImageDataset
 
 def classify_image(caption: str) -> str:
     caption_lower = caption.lower()
+
+    # [최우선 컴퓨터 분류 규칙] - VLM 캡션 내 관련 핵심 단어가 하나라도 포함되면 Computers 카테고리로 지정
+    computer_priority_keywords = [
+        "computer",
+        "laptop",
+        "pc",
+        "monitor",
+        "keyboard",
+        "desktop",
+        "macbook",
+        "workstation",
+        "screen",
+        "mouse",
+        "cpu",
+    ]
+    if any(kw in caption_lower for kw in computer_priority_keywords):
+        return "Computers"
+
+    # 기타 정규 카테고리 순회
     for category, keywords in CATEGORIES.items():
+        if category == "Computers":
+            continue
         if any(kw in caption_lower for kw in keywords):
             return category
+
     return "Others"
 
 
@@ -353,7 +372,6 @@ def evaluate_category_fid(
         gen: int,
         device: str = "cuda",
 ) -> float | None:
-    # MIN_SAMPLES 미만 시 제외
     if len(real_files) < MIN_SAMPLES or len(fake_files) < MIN_SAMPLES:
         print(
             f"{Fore.BLUE}{'[FID-C]':<9}{Fore.CYAN}Gen {Fore.MAGENTA}{gen}{Fore.WHITE} "
@@ -435,7 +453,6 @@ if __name__ == "__main__":
             if score is not None:
                 results[category][gen] = score
 
-    # 1. 카테고리별 FID 및 이미지 수 표 출력
     print(f"\n{'=' * 115}")
     print(
         f"=== Category FID Evaluation Summary (vs gen_0) [Format: FID (fake_count)] ==="
@@ -459,7 +476,6 @@ if __name__ == "__main__":
                 row += f"  {'N/A':>5}({cnt:<4})"
         print(row)
 
-    # 2. 가중평균 출력
     weighted_with_others: dict[int, float] = {}
     weighted_without_others: dict[int, float] = {}
 
