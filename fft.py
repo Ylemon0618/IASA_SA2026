@@ -2,6 +2,7 @@ import os
 import shutil
 import ssl
 import tempfile
+import time
 from glob import glob
 
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -36,7 +37,6 @@ load_dotenv()
 
 MIN_SAMPLES = 10
 
-# 13개 표준 카테고리 목록
 STANDARD_CATEGORIES = [
     "Airplanes",
     "Bicycles",
@@ -87,8 +87,7 @@ def load_category_files(gen_dir: str) -> dict[str, list[str]]:
         else gen_dir
     )
 
-    all_categories = STANDARD_CATEGORIES + ["Others"]
-    category_files: dict[str, list[str]] = {cat: [] for cat in all_categories}
+    category_files: dict[str, list[str]] = {cat: [] for cat in STANDARD_CATEGORIES}
 
     sub_dirs = [
         d for d in os.listdir(images_dir)
@@ -97,22 +96,28 @@ def load_category_files(gen_dir: str) -> dict[str, list[str]]:
 
     if sub_dirs:
         for cat_dir in sub_dirs:
-            category = cat_dir if cat_dir in STANDARD_CATEGORIES else "Others"
-            cat_path = os.path.join(images_dir, cat_dir)
-
-            img_paths = (
+            if cat_dir in STANDARD_CATEGORIES:
+                cat_path = os.path.join(images_dir, cat_dir)
+                img_paths = (
                     glob(os.path.join(cat_path, "*.png"))
                     + glob(os.path.join(cat_path, "*.jpg"))
                     + glob(os.path.join(cat_path, "*.jpeg"))
-            )
-            category_files[category].extend(img_paths)
-    else:
-        img_paths = (
-                glob(os.path.join(images_dir, "*.png"))
-                + glob(os.path.join(images_dir, "*.jpg"))
-                + glob(os.path.join(images_dir, "*.jpeg"))
-        )
-        category_files["Others"].extend(img_paths)
+                )
+                category_files[cat_dir].extend(img_paths)
+        return category_files
+
+    all_imgs = (
+            glob(os.path.join(images_dir, "*.png"))
+            + glob(os.path.join(images_dir, "*.jpg"))
+            + glob(os.path.join(images_dir, "*.jpeg"))
+    )
+
+    for img_p in all_imgs:
+        file_name = os.path.basename(img_p)
+        for cat in STANDARD_CATEGORIES:
+            if cat.lower() in file_name.lower():
+                category_files[cat].append(img_p)
+                break
 
     return category_files
 
@@ -136,10 +141,13 @@ def evaluate_category_fid(
         tempfile.TemporaryDirectory() as tmp_real,
         tempfile.TemporaryDirectory() as tmp_fake,
     ):
-        for p in real_files:
-            shutil.copy(p, os.path.join(tmp_real, os.path.basename(p)))
-        for p in fake_files:
-            shutil.copy(p, os.path.join(tmp_fake, os.path.basename(p)))
+        for idx, p in enumerate(real_files):
+            ext = os.path.splitext(p)[1]
+            shutil.copy(p, os.path.join(tmp_real, f"real_{idx}{ext}"))
+
+        for idx, p in enumerate(fake_files):
+            ext = os.path.splitext(p)[1]
+            shutil.copy(p, os.path.join(tmp_fake, f"fake_{idx}{ext}"))
 
         try:
             fid_value = calculate_fid_given_paths(
@@ -159,11 +167,11 @@ def evaluate_category_fid(
 
 
 if __name__ == "__main__":
+    start_time = time.time()
+
     generations = int(os.environ.get("GENERATIONS", 20))
     data_root = "./fft_data"
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    all_categories = STANDARD_CATEGORIES + ["Others"]
 
     gen0_dir = os.path.join(data_root, "gen_0")
     if not os.path.exists(gen0_dir) and os.path.exists("./dataset"):
@@ -178,7 +186,7 @@ if __name__ == "__main__":
             f"{Fore.WHITE}[gen_0] {cat}: {len(files)} images{Style.RESET_ALL}"
         )
 
-    results: dict[str, dict[int, float]] = {cat: {} for cat in all_categories}
+    results: dict[str, dict[int, float]] = {cat: {} for cat in STANDARD_CATEGORIES}
     gen_file_counts: dict[int, dict[str, int]] = {}
 
     for gen in range(1, generations):
@@ -194,7 +202,7 @@ if __name__ == "__main__":
             cat: len(files) for cat, files in gen_files.items()
         }
 
-        for category in all_categories:
+        for category in STANDARD_CATEGORIES:
             score = evaluate_category_fid(
                 real_files=gen0_files[category],
                 fake_files=gen_files[category],
@@ -228,52 +236,38 @@ if __name__ == "__main__":
                 row += f"  {'N/A':>5}({cnt:<4})"
         print(row)
 
-    weighted_with_others: dict[int, float] = {}
-    weighted_without_others: dict[int, float] = {}
+    weighted_fid: dict[int, float] = {}
 
     for gen in range(1, generations):
         counts = gen_file_counts.get(gen, {})
-
-        total_count_inc = sum(
-            counts.get(cat, 0)
-            for cat in all_categories
-            if gen in results[cat]
-        )
-        if total_count_inc > 0:
-            weighted_sum_inc = sum(
-                counts.get(cat, 0) * results[cat][gen]
-                for cat in all_categories
-                if gen in results[cat]
-            )
-            weighted_with_others[gen] = weighted_sum_inc / total_count_inc
-
-        total_count_exc = sum(
+        total_count = sum(
             counts.get(cat, 0)
             for cat in STANDARD_CATEGORIES
             if gen in results[cat]
         )
-        if total_count_exc > 0:
-            weighted_sum_exc = sum(
+        if total_count > 0:
+            weighted_sum = sum(
                 counts.get(cat, 0) * results[cat][gen]
                 for cat in STANDARD_CATEGORIES
                 if gen in results[cat]
             )
-            weighted_without_others[gen] = weighted_sum_exc / total_count_exc
+            weighted_fid[gen] = weighted_sum / total_count
 
     print(f"\n{'=' * 115}")
     print("=== Aggregated Weighted Average FID Summary ===")
     print(f"{'=' * 115}")
 
-    row_inc = f"{'With Others':<22}"
-    row_exc = f"{'Without Others':<22}"
-
+    row_avg = f"{'Weighted Average':<22}"
     for gen in range(1, generations):
-        v_inc = weighted_with_others.get(gen)
-        v_exc = weighted_without_others.get(gen)
-        row_inc += f"  {v_inc:>12.2f}" if v_inc is not None else f"  {'N/A':>12}"
-        row_exc += f"  {v_exc:>12.2f}" if v_exc is not None else f"  {'N/A':>12}"
+        v_avg = weighted_fid.get(gen)
+        row_avg += f"  {v_avg:>12.2f}" if v_avg is not None else f"  {'N/A':>12}"
 
     print(header)
     print("-" * len(header))
-    print(f"{Fore.YELLOW}{row_inc}{Style.RESET_ALL}")
-    print(f"{Fore.GREEN}{row_exc}{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}{row_avg}{Style.RESET_ALL}")
+
+    elapsed_time = time.time() - start_time
+    print(
+        f"\n{Fore.CYAN}[SYSTEM] Total Execution Time (Gen 0 to Gen {generations - 1}): "
+        f"{elapsed_time:.2f} seconds ({elapsed_time / 60:.2f} minutes){Style.RESET_ALL}"
+    )
