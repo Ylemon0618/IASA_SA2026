@@ -70,7 +70,7 @@ def get_features(image_dir, device="cuda", batch_size=32):
 def evaluate_prdc(
         base_gen,
         target_gen,
-        data_root="./fft_data",
+        data_root="../fft_data",
         device="cuda"
 ):
     path_real = os.path.join(
