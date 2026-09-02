@@ -141,19 +141,15 @@ class FFTResearchPipeline:
     def caption_images(self, gen_num):
         save_dir = f"{self.output_root}/gen_{gen_num}/images"
         img_paths = glob(f"{save_dir}/**/*.png", recursive=True)
-        metadata = []
-
-        metadata_path = os.path.join(save_dir, "metadata.jsonl")
         total_images = len(img_paths)
 
-        if os.path.exists(metadata_path):
-            with open(metadata_path, "r", encoding="utf-8") as f:
-                existing_captions = f.readlines()
-            if len(existing_captions) >= total_images and total_images > 0:
-                print(
-                    f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All captions already exist. Skipping captioning.{Fore.RESET}"
-                )
-                return
+        # 개별 .txt 파일 존재 여부 확인
+        txt_paths = glob(f"{save_dir}/**/*.txt", recursive=True)
+        if len(txt_paths) >= total_images and total_images > 0:
+            print(
+                f"{Fore.YELLOW}{'[Llava]':<9}{Fore.BLUE}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: All .txt captions already exist. Skipping captioning.{Fore.RESET}"
+            )
+            return
 
         print(
             f"{Fore.YELLOW}{'[Llava]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen_num}{Fore.WHITE}: Starting Llava Captioning{Style.RESET_ALL}"
@@ -172,6 +168,12 @@ class FFTResearchPipeline:
         )
 
         for img_p in tqdm(img_paths, desc="Captioning Progress"):
+            txt_path = img_p.rsplit(".", 1)[0] + ".txt"
+
+            # 이미 해당 txt가 존재하면 건너뜀
+            if os.path.exists(txt_path):
+                continue
+
             raw_image = Image.open(img_p).convert("RGB")
             prompt = (
                 "USER: <image>\nDescribe this image in detail.\nASSISTANT:"
@@ -191,16 +193,9 @@ class FFTResearchPipeline:
                 outputs[0]["generated_text"].split("ASSISTANT:")[-1].strip()
             )
 
-            rel_file_path = os.path.relpath(img_p, save_dir)
-            metadata.append({"file_name": rel_file_path, "text": caption})
-
-            txt_path = img_p.rsplit(".", 1)[0] + ".txt"
+            # metadata.jsonl 대신 이미지별 .txt 파일만 저장
             with open(txt_path, "w", encoding="utf-8") as f_txt:
                 f_txt.write(caption)
-
-        with open(metadata_path, "w", encoding="utf-8") as f:
-            for entry in metadata:
-                f.write(json.dumps(entry) + "\n")
 
         del captioner
         torch.cuda.empty_cache()
@@ -231,6 +226,14 @@ class FFTResearchPipeline:
             if custom_train_dir
             else f"{self.output_root}/gen_{gen_num}/images"
         )
+
+        # diffusers가 .txt를 강제로 읽도록 metadata.jsonl 파일이 존재하는 경우 삭제/제거
+        metadata_path = os.path.join(train_data_path, "metadata.jsonl")
+        if os.path.exists(metadata_path):
+            print(
+                f"{Fore.YELLOW}{'[FFT]':<9}Removing '{metadata_path}' to enforce .txt caption loading.{Style.RESET_ALL}"
+            )
+            os.remove(metadata_path)
 
         subprocess.run(
             [
