@@ -2,27 +2,41 @@ import os
 
 import numpy as np
 import torch
+from PIL import Image
 from colorama import Fore, Style
 from dotenv import load_dotenv
 from prdc import compute_prdc
-from pytorch_fid.fid_score import ImagePathDataset
 from pytorch_fid.inception import InceptionV3
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
 load_dotenv()
 
 
-# ==========================================================
-# Feature Extraction
-# ==========================================================
+class SafePRDCImageDataset(Dataset):
+    def __init__(self, files, img_size=(1024, 1024)):
+        self.files = files
+        self.transform = transforms.Compose([
+            transforms.Resize(img_size, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.ToTensor(),  # PIL -> Tensor [0, 1] Range
+        ])
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, i):
+        path = self.files[i]
+        try:
+            img = Image.open(path).convert("RGB")
+        except Exception:
+            # 손상된 이미지 처리
+            img = Image.new("RGB", (1024, 1024), (0, 0, 0))
+
+        return self.transform(img)
+
 
 def get_features(image_dir, device="cuda", batch_size=32):
-    """
-    지정된 디렉토리(하위 디렉토리 포함)에서 모든 이미지를 수집하여
-    InceptionV3 2048차원 Feature Vector를 추출합니다.
-    """
     files = []
-    # os.walk를 활용해 하위 폴더(카테고리 폴더)까지 재귀적으로 탐색
     for root, _, filenames in os.walk(image_dir):
         for f in filenames:
             if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
@@ -33,7 +47,7 @@ def get_features(image_dir, device="cuda", batch_size=32):
     if len(files) == 0:
         raise ValueError(f"No images found in {image_dir}")
 
-    dataset = ImagePathDataset(files)
+    dataset = SafePRDCImageDataset(files)
 
     dataloader = DataLoader(
         dataset,
@@ -66,15 +80,7 @@ def get_features(image_dir, device="cuda", batch_size=32):
     return np.concatenate(features, axis=0)
 
 
-# ==========================================================
-# PRDC Evaluation
-# ==========================================================
-
 def resolve_image_path(base_dir):
-    """
-    해당 세대 디렉터리 내에 'images' 하위 폴더가 있으면 그 경로를,
-    없으면 기본 경로를 반환합니다.
-    """
     images_subdir = os.path.join(base_dir, "images")
     if os.path.exists(images_subdir):
         return images_subdir
@@ -87,11 +93,8 @@ def evaluate_prdc(
         data_root="./fft_data",
         device="cuda"
 ):
-    # 생성(Target) 데이터 경로 확인
     target_dir = os.path.join(data_root, f"gen_{target_gen}")
     path_fake = resolve_image_path(target_dir)
-
-    # Base(Real/gen_0) 데이터 경로
     path_real = resolve_image_path(base_gen_dir)
 
     if not os.path.exists(path_real) or not os.path.exists(path_fake):
@@ -150,16 +153,11 @@ def evaluate_prdc(
         return None
 
 
-# ==========================================================
-# Main
-# ==========================================================
-
 if __name__ == "__main__":
     generations = int(os.environ.get("GENERATIONS", 20))
     data_root = "./fft_data"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Base Generation (gen_0) 경로 탐색
     gen0_dir = os.path.join(data_root, "gen_0")
     if not os.path.exists(gen0_dir) and os.path.exists("./dataset"):
         gen0_dir = "./dataset"
