@@ -12,35 +12,53 @@ load_dotenv()
 
 def inject_label_noise(source_dir, target_root, error_rate_percent):
     folder_name = os.path.basename(os.path.normpath(source_dir))
-    corrupted_dir = os.path.join(target_root, f"error_{error_rate_percent}pct", folder_name)
+    corrupted_dir = os.path.join(
+        target_root, f"error_{error_rate_percent}pct", folder_name
+    )
 
     if os.path.exists(corrupted_dir):
-        print(f"{Fore.YELLOW}[SYSTEM] Existing directory found. Deleting and re-cloning.{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}[SYSTEM] Existing directory found. Deleting and re-cloning.{Style.RESET_ALL}"
+        )
         shutil.rmtree(corrupted_dir)
 
-    print(f"{Fore.CYAN}[SYSTEM] Cloning directory... {Fore.WHITE}({source_dir} -> {corrupted_dir}){Style.RESET_ALL}")
+    print(
+        f"{Fore.CYAN}[SYSTEM] Cloning directory... {Fore.WHITE}({source_dir} -> {corrupted_dir}){Style.RESET_ALL}"
+    )
     shutil.copytree(source_dir, corrupted_dir)
 
-    txt_files = sorted(glob.glob(os.path.join(corrupted_dir, "*.txt")))
+    # 하위 카테고리 디렉터리 포함 전체 .txt 파일 탐색
+    txt_files = sorted(
+        glob.glob(os.path.join(corrupted_dir, "**", "*.txt"), recursive=True)
+    )
     total_files = len(txt_files)
 
     if total_files < 2:
         print(
-            f"{Fore.RED}[ERROR] Insufficient text files to perform a swap. (Total files: {total_files}){Style.RESET_ALL}")
+            f"{Fore.RED}[ERROR] Insufficient text files to perform a swap. (Total files: {total_files}){Style.RESET_ALL}"
+        )
         return corrupted_dir
 
-    target_corrupted_count = int(math.floor(total_files * (error_rate_percent / 100.0)))
+    target_corrupted_count = int(
+        math.floor(total_files * (error_rate_percent / 100.0))
+    )
     pair_count = target_corrupted_count // 2
     actual_corrupted_count = pair_count * 2
 
-    print(f"{Fore.GREEN}[INFO] Total Files: {total_files} | Target Error Rate: {error_rate_percent}%")
     print(
-        f"[INFO] File pairs to swap: {pair_count} pairs ({actual_corrupted_count} total files corrupted){Style.RESET_ALL}")
+        f"{Fore.GREEN}[INFO] Total Files: {total_files} | Target Error Rate: {error_rate_percent}%"
+    )
+    print(
+        f"[INFO] File pairs to swap: {pair_count} pairs ({actual_corrupted_count} total files corrupted){Style.RESET_ALL}"
+    )
 
     if pair_count == 0:
-        print(f"{Fore.YELLOW}[WARN] Error rate too low or file count too small. No files swapped.{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}[WARN] Error rate too low or file count too small. No files swapped.{Style.RESET_ALL}"
+        )
         return corrupted_dir
 
+    # random.sample: 중복 없는 비복원 추출이므로 한 번 뽑힌 인덱스는 절대 다시 안 뽑힘
     chosen_indices = random.sample(range(total_files), actual_corrupted_count)
 
     for i in range(0, len(chosen_indices), 2):
@@ -60,9 +78,15 @@ def inject_label_noise(source_dir, target_root, error_rate_percent):
         with open(file2_path, "w", encoding="utf-8") as f2:
             f2.write(content1)
 
-        print(f"  {Fore.MAGENTA}↳ [SWAP]{Fore.WHITE} {os.path.basename(file1_path)} ⇄ {os.path.basename(file2_path)}")
+        rel_p1 = os.path.relpath(file1_path, corrupted_dir)
+        rel_p2 = os.path.relpath(file2_path, corrupted_dir)
+        print(
+            f"  {Fore.MAGENTA}↳ [SWAP]{Fore.WHITE} {rel_p1} ⇄ {rel_p2}"
+        )
 
-    print(f"{Fore.GREEN}[SUCCESS] Label noise injection complete! Output path: {corrupted_dir}{Style.RESET_ALL}\n")
+    print(
+        f"{Fore.GREEN}[SUCCESS] Label noise injection complete! Output path: {corrupted_dir}{Style.RESET_ALL}\n"
+    )
     return corrupted_dir
 
 
@@ -76,8 +100,14 @@ if __name__ == "__main__":
         error_rate = float(error_input)
 
         if 0 <= error_rate <= 100:
-            new_data_path = inject_label_noise(SRC_DIR, TARGET_ROOT, error_rate)
+            new_data_path = inject_label_noise(
+                SRC_DIR, TARGET_ROOT, error_rate
+            )
         else:
-            print(f"{Fore.RED}[ERROR] Error rate must be between 0 and 100.{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}[ERROR] Error rate must be between 0 and 100.{Style.RESET_ALL}"
+            )
     except ValueError:
-        print(f"{Fore.RED}[ERROR] Please enter a valid numerical value.{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}[ERROR] Please enter a valid numerical value.{Style.RESET_ALL}"
+        )
