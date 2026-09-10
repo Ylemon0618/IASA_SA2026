@@ -1,15 +1,14 @@
 import os
-import math
+from glob import glob
+
 import numpy as np
-from PIL import Image
 import torch
 import torch.nn.functional as F
-from torchvision.models import inception_v3, Inception_V3_Weights
 import torchvision.transforms as transforms
-from tqdm import tqdm
-from scipy.stats import entropy
+from PIL import Image
 from colorama import Fore, Style
 from dotenv import load_dotenv
+from torchvision.models import Inception_V3_Weights, inception_v3
 
 load_dotenv()
 
@@ -20,29 +19,40 @@ def calculate_inception_score(img_dir, batch_size=32, splits=10, device="cuda"):
     model = inception_v3(weights=weights, transform_input=False).to(device)
     model.eval()
 
-    preprocess = transforms.Compose([
-        transforms.Resize((299, 299)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
+    preprocess = transforms.Compose(
+        [
+            transforms.Resize((299, 299)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+            ),
+        ]
+    )
 
-    valid_extensions = (".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG")
-    img_paths = [os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.endswith(valid_extensions)]
+    valid_extensions = ("*.png", "*.jpg", "*.jpeg", "*.PNG", "*.JPG", "*.JPEG")
+    img_paths = []
+    for ext in valid_extensions:
+        img_paths.extend(
+            glob(os.path.join(img_dir, "**", ext), recursive=True)
+        )
+    img_paths = sorted(img_paths)
 
     if not img_paths:
-        print(f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}{Fore.MAGENTA}{img_dir}{Fore.RED}: No image in path{Style.RESET_ALL}")
+        print(
+            f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}{Fore.MAGENTA}{img_dir}{Fore.RED}: No image in path{Style.RESET_ALL}"
+        )
         return None, None
 
     preds = []
     for i in range(0, len(img_paths), batch_size):
-        batch_paths = img_paths[i:i + batch_size]
+        batch_paths = img_paths[i: i + batch_size]
         batch_tensors = []
 
         for p in batch_paths:
             try:
-                with Image.open(p).convert('RGB') as img:
+                with Image.open(p).convert("RGB") as img:
                     batch_tensors.append(preprocess(img))
-            except Exception as e:
+            except Exception:
                 continue
 
         if not batch_tensors:
@@ -59,10 +69,15 @@ def calculate_inception_score(img_dir, batch_size=32, splits=10, device="cuda"):
 
     preds = np.concatenate(preds, axis=0)
 
-    split_scores = []
-    split_size = len(img_paths) // splits
+    total_samples = len(preds)
+    actual_splits = min(splits, total_samples)
+    if actual_splits == 0:
+        return None, None
 
-    for k in range(splits):
+    split_size = total_samples // actual_splits
+    split_scores = []
+
+    for k in range(actual_splits):
         part = preds[k * split_size: (k + 1) * split_size]
 
         p_yx = part
@@ -90,11 +105,15 @@ if __name__ == "__main__":
     for gen in target_generations:
         image_dir = os.path.join(data_root, f"gen_{gen}", "images")
         if os.path.exists(image_dir):
-            print(f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Calculate IS score{Style.RESET_ALL}")
+            print(
+                f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: Calculate IS score{Style.RESET_ALL}"
+            )
             mean, std = calculate_inception_score(image_dir)
             if None not in (mean, std):
                 results[f"Gen_{gen}"] = (mean, std)
-                print(f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: IS score is {Fore.GREEN}{mean:.4f} (± {std:.4f}){Style.RESET_ALL}")
+                print(
+                    f"{Fore.BLUE}{'[IS]':<9}{Fore.CYAN}Generation {Fore.MAGENTA}{gen}{Fore.WHITE}: IS score is {Fore.GREEN}{mean:.4f} (± {std:.4f}){Style.RESET_ALL}"
+                )
 
     print("\n=== IS Evaluation Summary ===")
     for gen, score in results.items():
