@@ -84,3 +84,8 @@ if __name__ == "__main__":
         for s_dir in sub_dirs:
             if os.path.isdir(s_dir):
                 generate_metadata_from_current_structure(s_dir)
+
+        sub_dirs = glob(os.path.join(corrupted_root, "gaussian_std_*", "*"))
+        for s_dir in sub_dirs:
+            if os.path.isdir(s_dir):
+                generate_metadata_from_current_structure(s_dir)
