@@ -44,5 +44,4 @@ accelerate launch "$SCRIPT" \
   --gradient_checkpointing \
   --use_8bit_adam \
   --enable_xformers_memory_efficient_attention \
-  --set_grads_to_none \
   --report_to="tensorboard"
