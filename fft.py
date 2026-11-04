@@ -320,7 +320,7 @@ if __name__ == "__main__":
     model_path = os.environ.get(
         "MODEL_PATH", "stabilityai/stable-diffusion-xl-base-1.0"
     )
-    generations = int(os.environ.get("GENERATIONS", 20))
+    generations = int(os.environ.get("GENERATIONS", 12))
 
     gen_0_dataset = input("[INPUT] Enter the dataset path for Generation 0: ").strip()
 
