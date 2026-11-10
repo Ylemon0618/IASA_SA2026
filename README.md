@@ -1,108 +1,179 @@
-# Information Loss Between Images and Text in Recursive Loops: Identifying the Optimal Cross-Learning Threshold for Maintaining Data Diversity
+# Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning
 
-#### Authors
-* **Kim Kyuwan** (Incheon Academy of Science and Arts)
-* **Kim Yoonhyeok** (Incheon Academy of Science and Arts)
-* **Ha Seong-u** (Incheon Academy of Science and Arts)
+This repository contains the code and experimental materials for our research on how different types and levels of initial data corruption affect model performance during heterogeneous multimodal recursive learning.
 
-## 1. Title & Abstract
-* **Project Name**: Information Loss Between Images and Text in Recursive Loops: Identifying the Optimal Cross-Learning Threshold for Maintaining Data Diversity
-* **Abstract**: This research establishes a heterogeneous multimodal recursive learning loop consisting of an image generation model (SDXL) and an image captioning model (LLaVA-1.5). By strictly controlling two primary variables—initial dataset error rate and image noise level—this project quantitatively investigates how recursive generation cycles affect information loss, vocabulary diversity contraction, and data distribution shifts. The ultimate goal is to identify the optimal cross-learning threshold required to mitigate and delay catastrophic model collapse in realistic, open-web data cycles.
+The study investigates recursive learning between an image generation model and an image captioning model, focusing on the effects of label noise and Gaussian noise on image quality, diversity, and image–text semantic consistency across generations.
 
----
+## 1. Research Overview
 
-## 2. Research Background & Objectives
+As generative AI systems increasingly use web-crawled data for training, AI-generated content can re-enter training datasets and be used repeatedly by subsequent models. This recursive use of synthetic data may lead to **model collapse**, a phenomenon in which models progressively lose the diversity and characteristics of the original data distribution.
 
-### 📌 Problem Statement
-With the explosive expansion of generative AI, an increasing portion of internet data is becoming synthetically generated. Recent studies predict a looming depletion of human-generated data relative to the massive training demands of advanced foundation models [1]. Consequently, future AI models will inevitably rely on auto-generated data, creating a closed recursive loop. Recent literature shows that recursive cycles suffer from **"model collapse"**, where data distributions monotonically converge and performance severely degrades due to cumulative statistical distortion [3]. Furthermore, input imperfections like image noise profoundly disrupt optimization boundaries [2], highlighting that data *quality* is just as critical as data *volume*.
+In real-world environments, outputs from one AI model may be processed by another model and reused as training data. This study examines such a heterogeneous multimodal setting using an image generation model and an image captioning model.
 
-### 🧪 Experimental Variables & Matrix
-To systematic evaluate the boundaries of model collapse, we control two primary dimensions:
+Our main objective is to investigate how the type and level of noise in the initial training dataset influence performance degradation during recursive learning.
 
-| Variable | Levels / Experimental Values | Operational Definition |
-| :--- | :--- | :--- |
-| **Initial Dataset Error Rate** | `0%`, `5%`, `10%`, `15%` | Mismatch ratio controlled by randomly swapping image-text pairs within the seed dataset. |
-| **Image Noise Level** | `None`, `Low`, `High` | Intensity of deterministic digital noise applied to synthetic outputs prior to training. |
+## 2. Models and Dataset
 
-### ❓ Research Questions
-1. How do data diversity and structural image quality shift across generations within an inter-model multimodal recursive learning environment?
-2. Between the initial label error rate and the post-generation image noise level, which factor acts as a more dominant driver accelerating the onset of model collapse?
-3. Does textual vocabulary richness (lexical diversity) and semantic accuracy decline statistically significantly as generation loops progress?
+| Component | Model / Dataset |
+|---|---|
+| Image Generation | Stable Diffusion XL Base 1.0 (SDXL) |
+| Image Captioning | LLaVA-1.5 7B |
+| Initial Dataset | UIUC Pascal Sentence Dataset |
+| Images per Generation | 3,000 |
+| Recursive Generations | Gen 0–Gen 12 |
 
----
+The initial dataset consists of 996 image–caption pairs from the UIUC Pascal Sentence Dataset.
 
-## 3. Pipeline Architecture
-The system employs an auto-recycling pipeline that models the cross-talk between vision and language domains across discrete generations ($G_0 \rightarrow G_1 \rightarrow \dots \rightarrow G_n$).
+For image generation, we prepared 1,400 prompts using an LLM to follow a style similar to the original dataset captions. These prompts were shuffled to produce 3,000 generation inputs, with some prompts reused.
 
+LLaVA-1.5 7B was used to generate new captions for the synthetic images at every generation.
 
-```
+## 3. Experimental Design
 
-[Initial Dataset (G0)] ──> [Full Fine-Tuning (FFT)] ──> [Updated SDXL Model]
-│
-▼
-[Next Gen Dataset (G_n+1)] <── [LLaVA-1.5 Captioning] <── [Image Generation]
+The main experimental variables were the **type and level of noise introduced into the initial training dataset**.
 
-```
+The two noise experiments were conducted independently.
 
-1. **Text-to-Image Synthesis**: The current generation's generative model synthesizes a bulk array of high-resolution images based on a randomized sampling pool.
-2. **Image-to-Text Captioning**: A vision-language model (VLM) analyzes the generated images and outputs detailed descriptive captions, transforming visual features back into tokens.
-3. **Recursive Re-training**: The newly paired synthetic dataset is fed back to update the base generation weights through recursive Full Fine-Tuning (FFT).
+### 3.1 Label Noise
 
----
+Label noise was introduced by randomly swapping captions between image–caption pairs, disrupting the correspondence between images and their captions while preserving the original images and caption texts.
 
-## 4. Getting Started & Installation
+| Condition | Label Noise Ratio |
+|---|---:|
+| L0 | 0% |
+| L5 | 5% |
+| L10 | 10% |
+| L15 | 15% |
 
-### 💻 Prerequisites
-* **OS**: Linux (Ubuntu 20.04/22.04 LTS recommended)
-* **Hardware**: CUDA-enabled GPU (Highly recommended: VRAM $\ge$ 24GB for SDXL/LLaVA operations)
-* **Python Version**: $\ge$ 3.10
+### 3.2 Gaussian Noise
 
-### 🚀 Installation
-Clone the repository and install the required dependencies:
-```bash
-git clone [https://github.com/Ylemon0618/IASA_SA2026.git](https://github.com/Ylemon0618/IASA_SA2026.git)
-cd IASA_SA2026
-pip install -r requirements.txt
+Gaussian noise was added directly to the RGB pixel values of the initial images. The captions and image–caption correspondence were preserved.
 
-```
+| Condition | Standard Deviation |
+|---|---:|
+| G0 | 0.00 |
+| G003 | 0.03 |
+| G010 | 0.10 |
+| G030 | 0.30 |
 
-### ⚙️ Environment Variables
+Each noise condition was used to initialize an independent recursive learning process.
 
-Configure your base data root and training parameters by creating a `.env` file in the root directory:
+## 4. Recursive Learning Pipeline
 
-```env
-DATASET_PATH="./dataset"
-MODEL_PATH="stabilityai/stable-diffusion-xl-base-1.0"
-GENERATIONS=10
-START_GEN=0
+The recursive learning process consisted of the following steps:
 
-```
+1. **Initial Training (Gen 0):** SDXL was fine-tuned using the initial dataset with the specified noise condition.
+2. **Image Generation:** The current SDXL model generated 3,000 synthetic images.
+3. **Image Captioning:** LLaVA-1.5 7B generated captions for the synthetic images.
+4. **Dataset Construction:** The generated images and their corresponding captions were combined into a new training dataset.
+5. **Recursive Fine-Tuning:** The next-generation SDXL model was fine-tuned using this synthetic dataset, inheriting the weights of the previous generation.
+6. **Evaluation:** The generated images were evaluated, and the process was repeated through Gen 12.
 
----
+The original dataset was used only for Gen 0. From Gen 1 onward, each model was trained using synthetic images and captions generated by the preceding generation.
+
+This process produced 13 model generations, from Gen 0 to Gen 12, representing 12 recursive training steps.
 
 ## 5. Evaluation Metrics
 
-To quantitatively map out the degradation profile and pinpoint the structural tipping point before autophagous model collapse occurs, the pipeline evaluates data across two major dimensions every generation:
+We used three evaluation approaches to examine changes in generated image quality, diversity, and image–text consistency.
 
-### 📸 1. Visual Domain Analysis
-* **Fréchet Inception Distance (FID) Score**: Evaluates global feature distribution distance between the generated outputs ($p_g$) and reference human datasets ($p_r$).
-  $$d^2((m_r, \Sigma_r), (m_g, \Sigma_g)) = \|m_r - m_g\|_2^2 + \text{Tr}(\Sigma_r + \Sigma_g - 2(\Sigma_r\Sigma_g)^{1/2})$$
-* **Per-Category FID Evaluation**: Utilizing `fid_category.py`, we apply caption keyword matching to calculate independent FID values per object class, preventing cross-category blending bias.
-* **Inception Score (IS)**: Measures the quality and diversity of the generated images by analyzing the conditional distribution $p(y|x)$ using a pre-trained Inception-v3 network. It ensures that generated images contain clear, identifiable objects (low entropy) while covering a wide range of distinct categories (high entropy).
-  $$\text{IS}(G) = \exp(\mathbb{E}_{x \sim p_g} [D_{KL}(p(y|x) \parallel p(y))]$$
+| Metric | Description |
+|---|---|
+| Inception Score (IS) | Evaluates the quality and diversity of generated images based on class predictions from a pretrained Inception-v3 model. |
+| CLIP-based Image–Text Cosine Similarity | Measures semantic similarity between each generated image and its corresponding LLaVA-generated caption using CLIP embeddings. |
+| PRDC | Evaluates the relationship between generated and real image distributions using Precision, Recall, Density, and Coverage. |
 
-### 🔤 2. Multimodal Semantic Alignment Analysis
-* **CLIP Score**: Evaluates the semantic directional alignment between the generated images and their corresponding textual captions. By embedding both modalities into a shared latent space via a pre-trained CLIP model, it computes the cosine similarity to directly quantify cross-modal information loss and semantic drift across continuous recursive generations.
-  $$\text{CLIP Score}(I, T) = \cos(\mathbf{e}_i, \mathbf{e}_t) = \frac{\mathbf{e}_i \cdot \mathbf{e}_t}{\|\mathbf{e}_i\| \|\mathbf{e}_t\|}$$
+For PRDC, the original 996 UIUC Pascal images were used as a fixed reference dataset across all conditions and generations. Image features were extracted using Inception-v3 with 2,048-dimensional representations, and the number of nearest neighbors was set to 5.
+
+**Note:** The CLIP-based metric in this study compares generated images with captions produced after image generation. It does not measure similarity between the original generation prompts and the generated images, and it is not identical to the standard CLIPScore implementation.
+
+## 6. Summary of Results
+
+The experiments showed an overall decline in evaluation metrics as recursive learning progressed across all tested noise conditions.
+
+For label noise, different noise levels produced different outcomes across evaluation metrics. Some noisy conditions achieved higher values than the noise-free condition for certain PRDC metrics, but no consistent improvement was observed as the noise ratio increased.
+
+For Gaussian noise, some noisy conditions showed higher Precision and Density than the noise-free condition in early generations. However, these improvements were not consistent across all evaluation metrics.
+
+Overall, the results suggest that initial data corruption may influence the degradation patterns of heterogeneous multimodal recursive learning. However, the experiments do not establish that noise consistently prevents or mitigates model collapse.
 
 ---
 
-## 6. References
+## Installation and Usage
 
-* **[1]** Pablo Villalobos, Anson Ho, Jaime Sevilla, Tamay Besiroglu, Lennart Heim, and Marius Hobbhahn. "Will we run out of data? Limits of LLM scaling based on human-generated data," *International Conference on Machine Learning (ICML)*, 2024.
-* **[2]** S. Y. Lee, S. R. Heo, and W. J. Lee. "A Study on Improving Model Collapse caused by Artificial Intelligence Recursive Learning," *Journal of Software Forensics*, Vol. 20, No. 4, pp. 145-154, 2024.
-* **[3]** Ilia Shumailov, Zakhar Shumaylov, Yiren Zhao, Nicolas Papernot, Ross Anderson, and Yarin Gal. "AI models collapse when trained on recursively generated data," *Nature*, Vol. 631, pp. 755-760, 2024.
+Follow the steps below to set up the environment and run the training pipeline.
 
+### 1. Clone the Repository
+
+Clone the repository and navigate to the project directory.
+
+```bash
+git clone https://github.com/Ylemon0618/IASA_SA2026.git
+cd IASA_SA2026
 ```
 
+### 2. Grant Execution Permission to the Setup Script
+
+Make the setup script executable.
+
+```bash
+chmod +x setup.sh
 ```
+
+### 3. Set Up the Environment
+
+Run the setup script to install and configure the required environment.
+
+```bash
+./setup.sh
+```
+
+### 4. Download the Initial Dataset
+
+Download the initial dataset and place the files in the appropriate directory as required by the project configuration.
+
+The initial dataset consists of 996 image-caption pairs from the UIUC Pascal Sentence Dataset.
+
+### 5. Inject Noise into the Initial Dataset
+
+Use the following scripts to apply noise to the initial dataset.
+
+- **Label noise:** Run `inject_label_noise.py` to introduce mismatches between images and their corresponding captions.
+- **Gaussian noise:** Run `inject_gaussian_noise.py` to add Gaussian noise to the image data.
+
+The two noise types are applied independently according to the experimental conditions.
+
+### 6. Generate Metadata
+
+Run `metadata_generator.py` to generate the metadata required for the subsequent training process.
+
+```bash
+python metadata_generator.py
+```
+
+### 7. Run Full Fine-Tuning
+
+Execute `fft.py` to start the Full Fine-Tuning (FFT) process using the prepared dataset.
+
+```bash
+python fft.py
+```
+
+This completes the initial setup and training stage. The resulting model can then be used as the starting point for the recursive learning process described in this study.
+
+**Note:** The exact dataset directory, script arguments, and configuration options may vary depending on the implementation. Check each script and its configuration settings before execution.
+
+---
+
+## Acknowledgments and References
+
+This research uses the following models, datasets, and evaluation methods:
+
+- **Stable Diffusion XL:** [SDXL Paper](https://arxiv.org/abs/2307.01952)
+- **LLaVA:** [LLaVA Paper](https://arxiv.org/abs/2304.08485)
+- **UIUC Pascal Sentence Dataset:** [Dataset Website](https://vision.cs.uiuc.edu/pascal-sentences/)
+- **CLIP:** [CLIP Paper](https://arxiv.org/abs/2103.00020)
+- **PRDC:** [PRDC Paper](https://arxiv.org/abs/2002.09797)
+- **Model Collapse:** [AI models collapse when trained on recursively generated data](https://www.nature.com/articles/s41586-024-07566-y)
+
+This repository is provided for academic and research purposes.
