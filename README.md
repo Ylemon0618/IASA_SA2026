@@ -98,6 +98,7 @@ For Gaussian noise, some noisy conditions showed higher Precision and Density th
 Overall, the results suggest that initial data corruption may influence the degradation patterns of heterogeneous multimodal recursive learning. However, the experiments do not establish that noise consistently prevents or mitigates model collapse.
 
 ---
+---
 
 ## Installation and Usage
 
@@ -163,6 +164,7 @@ This completes the initial setup and training stage. The resulting model can the
 
 **Note:** The exact dataset directory, script arguments, and configuration options may vary depending on the implementation. Check each script and its configuration settings before execution.
 
+---
 ---
 
 ## Acknowledgments and References
