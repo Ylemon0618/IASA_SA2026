@@ -360,7 +360,10 @@ See the [LICENSE](LICENSE) file for the full license text.
 
 This repository is provided for academic and research purposes.
 
-## AI Assistance Disclosure
+---
+---
+
+### AI Assistance Disclosure
 
 OpenAI's **ChatGPT** was used as an AI-assisted development and documentation tool for this repository. Its assistance included reviewing and suggesting code changes, reorganizing the repository structure, updating generation-number conventions, and drafting or editing portions of the README and other project documentation.
 
