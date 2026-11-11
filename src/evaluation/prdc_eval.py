@@ -1,3 +1,9 @@
+from pathlib import Path as _ProjectPath
+_PROJECT_ROOT = _ProjectPath(__file__).resolve().parents[2]
+if __name__ == "__main__":
+    import os as _project_os
+    _project_os.chdir(_PROJECT_ROOT)
+
 import os
 
 import numpy as np
