@@ -164,7 +164,7 @@ Follow the steps below to set up the environment and run the training pipeline.
 ### 8.1 Clone the Repository
 
 ```bash
-git clone https://github.com/Ylemon0618/IASA_SA2026.git
+git clone https://github.com/Ylemon0618/multimodal-recursive-learning-varying-data-corruption.git
 cd IASA_SA2026
 ```
 
@@ -202,7 +202,7 @@ The two noise types are applied independently according to the experimental cond
 Run the metadata generation script to prepare the metadata required for training.
 
 ```bash
-python metadata_generator.py
+python scripts/data/metadata_generator.py
 ```
 
 ### 8.7 Run Full Fine-Tuning
@@ -210,7 +210,7 @@ python metadata_generator.py
 Execute the training script using the prepared dataset and the corresponding experimental configuration.
 
 ```bash
-python fft.py
+python scripts/training/fft.py
 ```
 
 The exact dataset paths, script arguments, and configuration options depend on the implementation. Check the relevant script and configuration files before execution.
@@ -242,13 +242,13 @@ IASA_SA2026/
 ├── README.md
 ├── data_sampler.py
 ├── fft.py
-├── fft_pilot.sh
+├── scripts/training/fft_pilot.sh
 ├── inject_gaussian_noise.py
 ├── inject_label_noise.py
 ├── metadata_generator.py
 ├── requirements.txt
 ├── setup.sh
-└── synthetic_image_prompts.json
+└── configs/synthetic_image_prompts.json
 ```
 
 ### Main Directories
@@ -264,13 +264,13 @@ IASA_SA2026/
 |---|---|
 | `data_sampler.py` | Handles sampling of data used in the experimental pipeline. |
 | `fft.py` | Implements the Full Fine-Tuning (FFT) training process. |
-| `fft_pilot.sh` | Shell script for running the pilot fine-tuning process. |
+| `scripts/training/fft_pilot.sh` | Shell script for running the pilot fine-tuning process. |
 | `inject_gaussian_noise.py` | Adds Gaussian noise to the initial image data. |
 | `inject_label_noise.py` | Introduces mismatches between images and their corresponding captions. |
 | `metadata_generator.py` | Generates metadata required for model training. |
 | `requirements.txt` | Lists the Python dependencies required by the project. |
 | `setup.sh` | Sets up the experimental environment. |
-| `synthetic_image_prompts.json` | Contains prompts used for synthetic image generation. |
+| `configs/synthetic_image_prompts.json` | Contains prompts used for synthetic image generation. |
 
 ### Evaluation Scripts
 
@@ -280,7 +280,7 @@ The `score/` directory contains the implementation of the evaluation metrics use
 - `is.py`: Calculates the Inception Score (IS).
 - `prdc.py`: Calculates Precision, Recall, Density, and Coverage (PRDC).
 
-The `modules/measures.py` file contains shared measurement-related functionality used by the project.
+The `src/modules/measures.py` file contains shared measurement-related functionality used by the project.
 
 ## 10. Acknowledgments and References
 
@@ -312,7 +312,7 @@ If you use this repository in your research, please cite the work as follows:
 
 Kim, K., Kim, Y., & Ha, S. (2026).  
 *Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning.*  
-GitHub Repository: https://github.com/Ylemon0618/IASA_SA2026
+GitHub Repository: https://github.com/Ylemon0618/multimodal-recursive-learning-varying-data-corruption
 
 Please update the citation information if the manuscript receives formal publication details, such as conference or journal information.
 
@@ -329,3 +329,21 @@ See the [LICENSE](LICENSE) file for the full license text.
 ---
 
 This repository is provided for academic and research purposes.
+
+## Current repository layout and generation indexing
+
+The source tree is organized under `scripts/data/`, `scripts/training/`, `src/evaluation/`, and `src/modules/`. The synthetic prompt pool is stored at `configs/synthetic_image_prompts.json`. Run commands from the repository root after installing dependencies with `pip install -r requirements.txt` and running `bash setup.sh`.
+
+The paper's **Gen 0–12** correspond directly to model checkpoints `models/gen_0` through `models/gen_12`. The first fine-tuning step produces Gen 0; Gen 1–12 use recursively generated and captioned data. Set `GENERATIONS=13` to train the thirteen checkpoints. To resume training at Gen N, use `START_GEN=N`; the previous completed checkpoint is `models/gen_(N-1)`. The automatic resume routine starts after the last completed checkpoint. Previously saved checkpoints with the old Gen 1–13 naming must be renamed or migrated before reuse.
+
+Example:
+
+```bash
+GENERATIONS=13 python scripts/training/fft.py
+START_GEN=6 GENERATIONS=13 python scripts/training/fft.py
+python src/evaluation/is_score.py
+python src/evaluation/clip.py
+python src/evaluation/prdc_eval.py
+```
+
+**Reproducibility note:** Dependency versions in `requirements.txt` are an explicit snapshot, not a validated reproduction of the original CUDA environment. `setup.sh` may override the Diffusers pin by installing a Git checkout. The experimental results have not been revalidated against these versions.
