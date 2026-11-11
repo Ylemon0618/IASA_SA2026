@@ -358,3 +358,9 @@ python src/evaluation/prdc_eval.py
 ```
 
 **Reproducibility note:** Dependency versions in `requirements.txt` are an explicit snapshot, not a validated reproduction of the original CUDA environment. `setup.sh` may override the Diffusers pin by installing a Git checkout. The experimental results have not been revalidated against these versions.
+
+## AI Assistance Disclosure
+
+OpenAI's **ChatGPT** was used as an AI-assisted development and documentation tool for this repository. Its assistance included reviewing and suggesting code changes, reorganizing the repository structure, updating generation-number conventions, and drafting or editing portions of the README and other project documentation.
+
+The research authors remain responsible for the study design, implementation decisions, experimental results, interpretations, and the accuracy of all published materials. AI-generated suggestions should not be interpreted as independently validated code or experimental findings. This disclosure does not imply that ChatGPT conducted or verified the experiments.
