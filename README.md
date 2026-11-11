@@ -1,5 +1,7 @@
 # Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning
 
+**Language / 언어:** [🇺🇸 English (current)](README.md) | [🇰🇷 한국어](README.ko.md)
+
 This repository contains the code and experimental materials for our research on how different types and levels of initial data corruption affect model performance during heterogeneous multimodal recursive learning.
 
 The study investigates recursive learning between an image generation model and an image captioning model, focusing on the effects of label noise and Gaussian noise on image quality, diversity, and image–text semantic consistency across generations.
