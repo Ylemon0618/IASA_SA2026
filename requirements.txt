@@ -12,7 +12,7 @@ transformers==5.22.2
 accelerate==1.15.0
 datasets==5.2.0
 peft==0.21.2
-safetensors==0.7.0
+safetensors==0.8.0
 
 # Optional acceleration and quantization packages; GPU-specific wheels may be needed.
 xformers==0.0.35
