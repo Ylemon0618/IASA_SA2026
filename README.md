@@ -1,4 +1,4 @@
-# Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning 
+# Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning
 
 This repository contains the code and experimental materials for our research on how different types and levels of initial data corruption affect model performance during heterogeneous multimodal recursive learning.
 
