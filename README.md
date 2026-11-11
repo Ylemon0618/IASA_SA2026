@@ -192,8 +192,8 @@ Place the images and corresponding caption metadata in the directory expected by
 
 Use the following scripts to apply noise to the initial dataset:
 
-- **Label noise:** `inject_label_noise.py` introduces mismatches between images and their corresponding captions.
-- **Gaussian noise:** `inject_gaussian_noise.py` adds Gaussian noise to the initial image pixels.
+- **Label noise:** `scripts/data/inject_label_noise.py` introduces mismatches between images and their corresponding captions.
+- **Gaussian noise:** `scripts/data/inject_gaussian_noise.py` adds Gaussian noise to the initial image pixels.
 
 The two noise types are applied independently according to the experimental conditions. Make sure to prepare a separate initial dataset for each condition so that the experiments do not overwrite one another.
 
@@ -229,52 +229,63 @@ The repository is organized into modules for model evaluation, training scripts,
 
 ```text
 IASA_SA2026/
-├── modules/
-│   ├── __init__.py
-│   └── measures.py
-│
-├── score/
-│   ├── clip.py
-│   ├── is.py
-│   └── prdc.py
-│
+├── configs/
+│   └── synthetic_image_prompts.json
+├── data/
+│   ├── initial/
+│   └── processed/
+├── outputs/
+│   ├── checkpoints/
+│   ├── generations/
+│   ├── logs/
+│   └── metrics/
+├── scripts/
+│   ├── data/
+│   │   ├── data_sampler.py
+│   │   ├── inject_gaussian_noise.py
+│   │   ├── inject_label_noise.py
+│   │   └── metadata_generator.py
+│   └── training/
+│       ├── fft.py
+│       └── fft_pilot.sh
+├── src/
+│   ├── evaluation/
+│   │   ├── clip.py
+│   │   ├── is_score.py
+│   │   └── prdc_eval.py
+│   └── modules/
+│       └── measures.py
 ├── .gitignore
+├── LICENSE
 ├── README.md
-├── data_sampler.py
-├── fft.py
-├── scripts/training/fft_pilot.sh
-├── inject_gaussian_noise.py
-├── inject_label_noise.py
-├── metadata_generator.py
 ├── requirements.txt
-├── setup.sh
-└── configs/synthetic_image_prompts.json
+└── setup.sh
 ```
 
 ### Main Directories
 
 | Directory | Description |
 |---|---|
-| `modules/` | Contains shared modules and measurement-related functionality used by the project. |
-| `score/` | Contains evaluation scripts for CLIP similarity, Inception Score (IS), and PRDC metrics. |
+| `src/modules/` | Contains shared modules and measurement-related functionality used by the project. |
+| `src/evaluation/` | Contains evaluation scripts for CLIP similarity, Inception Score (IS), and PRDC metrics. |
 
 ### Main Files
 
 | File | Description |
 |---|---|
-| `data_sampler.py` | Handles sampling of data used in the experimental pipeline. |
-| `fft.py` | Implements the Full Fine-Tuning (FFT) training process. |
+| `scripts/data/data_sampler.py` | Handles sampling of data used in the experimental pipeline. |
+| `scripts/training/fft.py` | Implements the Full Fine-Tuning (FFT) training process. |
 | `scripts/training/fft_pilot.sh` | Shell script for running the pilot fine-tuning process. |
-| `inject_gaussian_noise.py` | Adds Gaussian noise to the initial image data. |
-| `inject_label_noise.py` | Introduces mismatches between images and their corresponding captions. |
-| `metadata_generator.py` | Generates metadata required for model training. |
+| `scripts/data/inject_gaussian_noise.py` | Adds Gaussian noise to the initial image data. |
+| `scripts/data/inject_label_noise.py` | Introduces mismatches between images and their corresponding captions. |
+| `scripts/data/metadata_generator.py` | Generates metadata required for model training. |
 | `requirements.txt` | Lists the Python dependencies required by the project. |
 | `setup.sh` | Sets up the experimental environment. |
 | `configs/synthetic_image_prompts.json` | Contains prompts used for synthetic image generation. |
 
 ### Evaluation Scripts
 
-The `score/` directory contains the implementation of the evaluation metrics used in this research.
+The `src/evaluation/` directory contains the implementation of the evaluation metrics used in this research.
 
 - `clip.py`: Calculates CLIP-based image–text cosine similarity.
 - `is.py`: Calculates the Inception Score (IS).
