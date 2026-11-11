@@ -165,24 +165,24 @@ Gen 12에서는 0.03 조건의 IS, Precision, Recall이 가장 높았고, 0.10 �
 
 ### 8.1 저장소 복제
 
-\`\`\`bash
+```bash
 git clone https://github.com/Ylemon0618/multimodal-recursive-learning-varying-data-corruption.git
 cd IASA_SA2026
-\`\`\`
+```
 
 ### 8.2 설정 스크립트 실행 권한 부여
 
-\`\`\`bash
+```bash
 chmod +x setup.sh
-\`\`\`
+```
 
 ### 8.3 환경 설정
 
 필요한 환경을 설치·설정하기 위해 스크립트를 실행한다.
 
-\`\`\`bash
+```bash
 ./setup.sh
-\`\`\`
+```
 
 ### 8.4 초기 데이터셋 준비
 
@@ -194,8 +194,8 @@ UIUC Pascal Sentence Dataset을 내려받고 이미지–캡션 쌍 996개를 �
 
 다음 스크립트로 노이즈를 주입한다.
 
-- **라벨 노이즈:** \`scripts/data/inject_label_noise.py\` — 이미지와 캡션의 대응 관계를 교란한다.
-- **가우시안 노이즈:** \`scripts/data/inject_gaussian_noise.py\` — 초기 이미지 픽셀에 가우시안 노이즈를 더한다.
+- **라벨 노이즈:** `scripts/data/inject_label_noise.py` — 이미지와 캡션의 대응 관계를 교란한다.
+- **가우시안 노이즈:** `scripts/data/inject_gaussian_noise.py` — 초기 이미지 픽셀에 가우시안 노이즈를 더한다.
 
 두 노이즈 유형은 실험 조건별로 독립적으로 적용한다. 실험 간 데이터가 덮어써지지 않도록 조건마다 별도 초기 데이터셋을 준비한다.
 
@@ -203,17 +203,17 @@ UIUC Pascal Sentence Dataset을 내려받고 이미지–캡션 쌍 996개를 �
 
 학습에 필요한 메타데이터를 생성한다.
 
-\`\`\`bash
+```bash
 python scripts/data/metadata_generator.py
-\`\`\`
+```
 
 ### 8.7 Full Fine-Tuning 실행
 
 준비한 데이터셋과 해당 실험 설정으로 학습 스크립트를 실행한다.
 
-\`\`\`bash
+```bash
 python scripts/training/fft.py
-\`\`\`
+```
 
 정확한 데이터 경로, 스크립트 인수 및 설정 옵션은 실제 구현에 따라 다르므로 관련 스크립트와 설정 파일을 확인해야 한다.
 
@@ -229,7 +229,7 @@ python scripts/training/fft.py
 
 이 저장소는 모델 평가, 학습, 데이터 준비 및 노이즈 주입 모듈로 구성된다.
 
-\`\`\`text
+```text
 IASA_SA2026/
 ├── configs/
 │   └── synthetic_image_prompts.json
@@ -262,40 +262,40 @@ IASA_SA2026/
 ├── README.md
 ├── requirements.txt
 └── setup.sh
-\`\`\`
+```
 
 ### 주요 디렉터리
 
 | 디렉터리 | 설명 |
 |---|---|
-| \`src/modules/\` | 프로젝트에서 공유하는 모듈과 측정 관련 기능 |
-| \`src/evaluation/\` | CLIP 유사도, IS, PRDC 평가 스크립트 |
+| `src/modules/` | 프로젝트에서 공유하는 모듈과 측정 관련 기능 |
+| `src/evaluation/` | CLIP 유사도, IS, PRDC 평가 스크립트 |
 
 ### 주요 파일
 
 | 파일 | 설명 |
 |---|---|
-| \`scripts/data/data_sampler.py\` | 실험 파이프라인에 사용할 데이터 샘플링 |
-| \`scripts/training/fft.py\` | Full Fine-Tuning (FFT) 학습 구현 |
-| \`scripts/training/fft_pilot.sh\` | 예비 파인튜닝 실행용 셸 스크립트 |
-| \`scripts/data/inject_gaussian_noise.py\` | 초기 이미지에 가우시안 노이즈 주입 |
-| \`scripts/data/inject_label_noise.py\` | 이미지와 캡션 간 불일치 생성 |
-| \`scripts/data/metadata_generator.py\` | 학습용 메타데이터 생성 |
-| \`requirements.txt\` | 프로젝트 Python 의존성 목록 |
-| \`setup.sh\` | 실험 환경 설정 |
-| \`configs/synthetic_image_prompts.json\` | 합성 이미지 생성용 프롬프트 |
+| `scripts/data/data_sampler.py` | 실험 파이프라인에 사용할 데이터 샘플링 |
+| `scripts/training/fft.py` | Full Fine-Tuning (FFT) 학습 구현 |
+| `scripts/training/fft_pilot.sh` | 예비 파인튜닝 실행용 셸 스크립트 |
+| `scripts/data/inject_gaussian_noise.py` | 초기 이미지에 가우시안 노이즈 주입 |
+| `scripts/data/inject_label_noise.py` | 이미지와 캡션 간 불일치 생성 |
+| `scripts/data/metadata_generator.py` | 학습용 메타데이터 생성 |
+| `requirements.txt` | 프로젝트 Python 의존성 목록 |
+| `setup.sh` | 실험 환경 설정 |
+| `configs/synthetic_image_prompts.json` | 합성 이미지 생성용 프롬프트 |
 
 ### 평가 스크립트
 
-\`src/evaluation/\`에는 본 연구에서 사용하는 평가 지표의 구현이 포함되어 있다.
+`src/evaluation/`에는 본 연구에서 사용하는 평가 지표의 구현이 포함되어 있다.
 
-- \`clip.py\`: CLIP 기반 이미지–텍스트 코사인 유사도 계산
-- \`is.py\`: Inception Score (IS) 계산
-- \`prdc.py\`: Precision, Recall, Density, Coverage (PRDC) 계산
+- `clip.py`: CLIP 기반 이미지–텍스트 코사인 유사도 계산
+- `is.py`: Inception Score (IS) 계산
+- `prdc.py`: Precision, Recall, Density, Coverage (PRDC) 계산
 
 \`src/modules/measures.py\`는 측정 관련 공통 기능을 포함한다.
 
-## 10. 감사의 글 및 참고문헌
+## 10. 참고문헌
 
 본 연구는 다음 모델, 데이터셋, 평가 방법을 활용한다.
 
@@ -321,21 +321,21 @@ IASA_SA2026/
 
 ## 11. 현재 저장소 구조 및 세대 번호 체계
 
-소스 트리는 \`scripts/data/\`, \`scripts/training/\`, \`src/evaluation/\`, \`src/modules/\`로 구성되어 있다. 합성 프롬프트 모음은 \`configs/synthetic_image_prompts.json\`에 저장된다. 저장소 루트에서 \`pip install -r requirements.txt\`로 의존성을 설치하고 \`bash setup.sh\`를 실행한 후 명령을 실행한다.
+소스 트리는 `scripts/data/`, `scripts/training/`, `src/evaluation/`, `src/modules/`로 구성되어 있다. 합성 프롬프트 모음은 `configs/synthetic_image_prompts.json`에 저장된다.
 
-논문의 **Gen 0–12**는 \`models/gen_0\`부터 \`models/gen_12\`까지의 모델 체크포인트에 직접 대응한다. 첫 파인튜닝으로 Gen 0을 생성하고, Gen 1–12는 재귀적으로 생성한 이미지와 캡션을 이용한다. 13개 체크포인트를 학습하려면 \`GENERATIONS=13\`을 설정한다. Gen N에서 학습을 재개하려면 \`START_GEN=N\`을 사용하며, 직전 완료 체크포인트는 \`models/gen_(N-1)\`이다. 자동 재개 기능은 마지막으로 완료된 체크포인트 다음부터 시작한다. 과거 Gen 1–13 체계로 저장한 체크포인트는 재사용 전에 이름을 변경하거나 마이그레이션해야 한다.
+논문의 **Gen 0–12**는 `models/gen_0`부터 `models/gen_12`까지의 모델 체크포인트에 직접 대응한다. 첫 파인튜닝으로 Gen 0을 생성하고, Gen 1–12는 재귀적으로 생성한 이미지와 캡션을 이용한다. 13개 체크포인트를 학습하려면 `GENERATIONS=13`을 설정한다. Gen N에서 학습을 재개하려면 `START_GEN=N`을 사용하며, 직전 완료 체크포인트는 `models/gen_(N-1)`이다. 자동 재개 기능은 마지막으로 완료된 체크포인트 다음부터 시작한다. 과거 Gen 1–13 체계로 저장한 체크포인트는 재사용 전에 이름을 변경하거나 마이그레이션해야 한다.
 
 실행 예시:
 
-\`\`\`bash
+```bash
 GENERATIONS=13 python scripts/training/fft.py
 START_GEN=6 GENERATIONS=13 python scripts/training/fft.py
 python src/evaluation/is_score.py
 python src/evaluation/clip.py
 python src/evaluation/prdc_eval.py
-\`\`\`
+```
 
-**재현성 관련 주의:** \`requirements.txt\`의 의존성 버전은 명시적인 스냅샷이며, 원래 CUDA 실험 환경을 검증하여 재현한 구성은 아니다. \`setup.sh\`가 Git 체크아웃 버전을 설치하면서 Diffusers 버전 고정을 덮어쓸 수 있다. 이 버전 구성에서 실험 결과가 동일하게 재현되는지는 검증되지 않았다.
+**재현성 관련 주의:** `requirements.txt`의 의존성 버전은 명시적인 스냅샷이며, 원래 CUDA 실험 환경을 검증하여 재현한 구성은 아니다. `setup.sh`가 Git 체크아웃 버전을 설치하면서 Diffusers 버전 고정을 덮어쓸 수 있다. 이 버전 구성에서 실험 결과가 동일하게 재현되는지는 검증되지 않았다.
 
 ## 12. 인용 방법
 
@@ -365,6 +365,6 @@ MIT License 조건에 따라 소프트웨어를 사용, 복사, 수정, 병합, 
 
 ### 생성형 AI 활용 고지
 
-OpenAI의 **ChatGPT**를 저장소 개발 및 문서 작성 보조 도구로 활용하였다. 여기에는 코드 변경 검토 및 제안, 저장소 구조 정리, 세대 번호 체계 수정, README 및 기타 프로젝트 문서의 일부 작성·편집 등이 포함된다.
+OpenAI의 ChatGPT를 저장소 개발 및 문서 작성 보조 도구로 활용하였다. 여기에는 코드 변경 검토 및 제안, 저장소 구조 정리, 세대 번호 체계 수정, README 및 기타 프로젝트 문서의 일부 작성·편집 등이 포함된다.
 
 연구 설계, 구현 결정, 실험 결과, 해석 및 공개 자료의 정확성에 대한 책임은 연구 저자에게 있다. AI가 제안한 내용은 독립적으로 검증된 코드나 실험 결과를 의미하지 않으며, ChatGPT가 실험을 직접 수행하거나 검증했다는 뜻도 아니다.
