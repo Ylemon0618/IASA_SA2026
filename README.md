@@ -286,22 +286,22 @@ The `modules/measures.py` file contains shared measurement-related functionality
 
 This research uses the following models, datasets, and evaluation methods.
 
-1. Podell et al. (2023). **SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis.**  
+1. Podell, D. et al. SDXL: Improving latent diffusion models for high-resolution image synthesis. Proc. ICLR (2024)
    https://arxiv.org/abs/2307.01952
 
-2. Liu et al. (2023). **Visual Instruction Tuning.**  
+2. Liu, H. et al. Improved baselines with visual instruction tuning. Proc. CVPR, 26296–26306 (2024)
    https://arxiv.org/abs/2304.08485
 
 3. UIUC Pascal Sentence Dataset.  
    https://vision.cs.uiuc.edu/pascal-sentences/
 
-4. Radford et al. (2021). **Learning Transferable Visual Models From Natural Language Supervision.**  
+4. Radford, A. et al. Learning transferable visual models from natural language supervision. Proc. ICML (PMLR) 139, 8748–8763 (2021)
    https://arxiv.org/abs/2103.00020
 
-5. Naeem et al. (2020). **Reliable Fidelity and Diversity Metrics for Generative Models.**  
+5. Naeem, M. F. et al. Reliable fidelity and diversity metrics for generative models. Proc. ICML (PMLR) 119, 7176–7185 (2020)
    https://arxiv.org/abs/2002.09797
 
-6. Shumailov et al. (2024). **AI models collapse when trained on recursively generated data.**  
+6. Shumailov, I. et al. AI models collapse when trained on recursively generated data. Nature 631, 755–759 (2024)
    https://www.nature.com/articles/s41586-024-07566-y
 
 Additional related studies discussed in the research paper are cited in the manuscript.
@@ -318,11 +318,13 @@ Please update the citation information if the manuscript receives formal publica
 
 ## 12. License
 
-No license information is specified in this repository description.
+This repository is licensed under the MIT License.
 
-If you intend to allow others to reuse, modify, or distribute the code, add an appropriate open-source license file (for example, `LICENSE`) and update this section accordingly.
+You are free to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the software, subject to the conditions of the MIT License.
 
-Until a license is added, users should not assume that the code is freely available for redistribution or reuse.
+See the [LICENSE](LICENSE) file for the full license text.
+
+**Third-Party Materials:** The MIT License applies only to the original code in this repository. Third-party models, datasets, libraries, and other materials used in this research are subject to their respective licenses and terms of use. Users are responsible for checking and complying with those terms.
 
 ---
 
