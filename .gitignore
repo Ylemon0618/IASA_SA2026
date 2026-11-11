@@ -8,3 +8,18 @@ dataset_corrupted
 lora_data
 models
 .env
+
+# Local datasets, checkpoints, generated outputs
+data/**
+!data/initial/
+!data/processed/
+!data/initial/.gitkeep
+!data/processed/.gitkeep
+outputs/**
+!outputs/checkpoints/
+!outputs/generations/
+!outputs/metrics/
+!outputs/logs/
+!outputs/*/.gitkeep
+__pycache__/
+*.py[cod]
