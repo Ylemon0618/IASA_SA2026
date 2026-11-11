@@ -317,31 +317,8 @@ This research uses the following models, datasets, and evaluation methods.
 
 Additional related studies discussed in the research paper are cited in the manuscript.
 
-## 11. Citation
+## 11. Current repository layout and generation indexing
 
-If you use this repository in your research, please cite the work as follows:
-
-Kim, K., Kim, Y., & Ha, S. (2026).  
-*Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning.*  
-GitHub Repository: https://github.com/Ylemon0618/multimodal-recursive-learning-varying-data-corruption
-
-Please update the citation information if the manuscript receives formal publication details, such as conference or journal information.
-
-## 12. License
-
-This repository is licensed under the MIT License.
-
-You are free to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the software, subject to the conditions of the MIT License.
-
-See the [LICENSE](LICENSE) file for the full license text.
-
-**Third-Party Materials:** The MIT License applies only to the original code in this repository. Third-party models, datasets, libraries, and other materials used in this research are subject to their respective licenses and terms of use. Users are responsible for checking and complying with those terms.
-
----
-
-This repository is provided for academic and research purposes.
-
-## Current repository layout and generation indexing
 
 The source tree is organized under `scripts/data/`, `scripts/training/`, `src/evaluation/`, and `src/modules/`. The synthetic prompt pool is stored at `configs/synthetic_image_prompts.json`. Run commands from the repository root after installing dependencies with `pip install -r requirements.txt` and running `bash setup.sh`.
 
@@ -358,6 +335,30 @@ python src/evaluation/prdc_eval.py
 ```
 
 **Reproducibility note:** Dependency versions in `requirements.txt` are an explicit snapshot, not a validated reproduction of the original CUDA environment. `setup.sh` may override the Diffusers pin by installing a Git checkout. The experimental results have not been revalidated against these versions.
+
+## 12. Citation
+
+If you use this repository in your research, please cite the work as follows:
+
+Kim, K., Kim, Y., & Ha, S. (2026).  
+*Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning.*  
+GitHub Repository: https://github.com/Ylemon0618/multimodal-recursive-learning-varying-data-corruption
+
+Please update the citation information if the manuscript receives formal publication details, such as conference or journal information.
+
+## 13. License
+
+This repository is licensed under the MIT License.
+
+You are free to use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the software, subject to the conditions of the MIT License.
+
+See the [LICENSE](LICENSE) file for the full license text.
+
+**Third-Party Materials:** The MIT License applies only to the original code in this repository. Third-party models, datasets, libraries, and other materials used in this research are subject to their respective licenses and terms of use. Users are responsible for checking and complying with those terms.
+
+---
+
+This repository is provided for academic and research purposes.
 
 ## AI Assistance Disclosure
 
