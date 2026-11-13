@@ -346,8 +346,6 @@ Kim, K., Kim, Y., & Ha, S. (2026).
 *Analyzing Model Collapse under Varying Initial Data Corruption Levels in Heterogeneous Multimodal Recursive Learning.*  
 GitHub Repository: https://github.com/Ylemon0618/multimodal-recursive-learning-varying-data-corruption
 
-Please update the citation information if the manuscript receives formal publication details, such as conference or journal information.
-
 ## 13. License
 
 This repository is licensed under the MIT License.
